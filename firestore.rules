@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // True only for accounts listed in the admins collection (i.e. the principal).
+    // A principal document is created manually by you in the Firebase Console —
+    // see the instructions that came with this file.
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    // True only if the caller is the HoD of the given department. Used to scope
+    // masterRosters writes to exactly the one department a given HoD manages.
+    function isHodOf(deptId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/hods/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/hods/$(request.auth.uid)).data.departmentId == deptId;
+    }
+    // Each professor (or the principal, if they choose to set one) can read/write
+    // only their own admin-flag document — this lets the app check "am I an admin?"
+    // without being able to read or grant anyone else's admin status.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // grant admin status only from the Firebase Console, never from the app
+    }
+    // Professors manage their own display name; the principal can read everyone's
+    // so classes can be labeled with a human name instead of a raw user ID.
+    match /professors/{profId} {
+      allow read: if request.auth != null && (request.auth.uid == profId || isAdmin());
+      allow write: if request.auth != null && request.auth.uid == profId;
+    }
+
+    // Departments & Courses catalog — every logged-in professor can read (needed
+    // to populate the dropdowns and cross-professor "existing classes" chips when
+    // adding a class), but only the principal can add/edit/delete entries.
+    match /departments/{deptId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+    match /courses/{courseId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // HoD assignments — a professor (or anyone) can read only their own doc, to
+    // check "am I an HoD, and of which department". The principal can read all
+    // (to build the Manage HoDs screen) and is the only one who can write —
+    // assignment/removal always goes through the principal's app UI.
+    match /hods/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // Master rosters — one doc per (department_course_section) triple, holding
+    // the full student list a Section Incharge (HoD) uploaded. Any logged-in
+    // professor can read (needed to fetch it into their own class — rosters
+    // are shared department-wide across every course for a matching section),
+    // but only the Section Incharge of that exact department, or the
+    // principal, can create/update/delete it. The one exception is
+    // "sectionKey": any authenticated professor may add/fix that single field
+    // (and nothing else) — the app backfills it on older roster docs the
+    // first time they're fetched, so department-wide lookups find them
+    // without requiring the Section Incharge to re-upload.
+    match /masterRosters/{key} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null &&
+        (isAdmin() || isHodOf(request.resource.data.departmentId));
+      allow update: if request.auth != null &&
+        (isAdmin() || isHodOf(resource.data.departmentId) ||
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sectionKey']));
+      allow delete: if request.auth != null &&
+        (isAdmin() || isHodOf(resource.data.departmentId));
+    }
+
+    match /classes/{classId} {
+      // Any logged-in professor can read class metadata (name, department, course,
+      // lecture count) — needed so the "existing classes under this course" picker
+      // works across professors. Student rosters and attendance records below
+      // remain fully restricted to the owning professor (or the principal).
+      allow read: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.professorId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.professorId == request.auth.uid;
+      match /students/{studentId} {
+        allow read: if request.auth != null &&
+          (get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid || isAdmin());
+        allow write: if request.auth != null &&
+          get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid;
+      }
+      match /attendance_records/{dateStr} {
+        allow read: if request.auth != null &&
+          (get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid || isAdmin());
+        allow write: if request.auth != null &&
+          get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid;
+      }
+      match /syllabus/{topicId} {
+        allow read: if request.auth != null &&
+          (get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid || isAdmin());
+        allow write: if request.auth != null &&
+          get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid;
+      }
+    }
+
+    // Public attendance view — lets a student check their own attendance with
+    // no account at all. Each doc is keyed by "{RollNumber}_{last 5 phone
+    // digits}" (built client-side, case-sensitive on the roll number), so a
+    // read only succeeds if the caller already knows both pieces. `list` is
+    // denied so the collection can never be browsed/enumerated wholesale —
+    // only a single, already-known doc ID can be fetched. Writes happen only
+    // from the app when a signed-in professor adds a student or submits
+    // attendance, never from a student.
+    match /publicView/{docId} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if request.auth != null;
+    }
+  }
+}

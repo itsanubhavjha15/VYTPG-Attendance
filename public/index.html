@@ -1,0 +1,3894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Attendance — Govt. V.Y.T. P.G. Autonomous College, Durg</title>
+<meta name="theme-color" content="#20261F" />
+<script>
+/* Applied before first paint so there's no flash of the wrong theme. */
+(function(){
+  try{
+    var saved = localStorage.getItem('themePreference');
+    if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
+  } catch(e){}
+})();
+</script>
+
+<!-- ===================== PWA ===================== -->
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/icon-192.png" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="VYTPG Attendance" />
+
+<!-- ===================== FIREBASE SDKS (compat, v10) ===================== -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+/* =====================================================================
+   DESIGN TOKENS
+   Palette   : paper #F6F5F1 · ink #232B27 · slate #59635D · line #E2E0D8
+               emerald #1F6F54 (primary accent) · gold #C9A24B (secondary)
+               rose-muted #B9564B (absent)  · surface-dark #1C2620
+   Type      : "Fraunces" (display/serif — institutional gravitas)
+               "Inter" (UI/body) · "JetBrains Mono" (data — roll no., %)
+   ===================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --paper:#EEF0EE;
+  --surface:#FBFBFA;
+  --surface-2:#E4E7E3;
+  --ink:#2A302C;
+  --slate:#636B65;
+  --slate-soft:#93998F;
+  --line:#DBDFD9;
+  --emerald:#3C6E5A;
+  --emerald-deep:#2C5346;
+  --emerald-tint:#E3EBE6;
+  --gold:#B79A5C;
+  --gold-tint:#F0EBDC;
+  --rose:#AD6157;
+  --rose-tint:#F1E4E1;
+  --dark-bg:#20261F;
+  --dark-surface:#283028;
+  --dark-line:#37403A;
+  --danger:#c0392b;
+  --radius-lg:20px;
+  --radius-md:14px;
+  --radius-sm:9px;
+  --shadow-1:0 1px 2px rgba(42,48,44,.05), 0 1px 1px rgba(42,48,44,.03);
+  --shadow-2:0 6px 18px -8px rgba(42,48,44,.12), 0 2px 5px rgba(42,48,44,.04);
+  --shadow-3:0 16px 40px -14px rgba(42,48,44,.18);
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+
+html[data-theme="dark"]{
+  --paper:#181D19;
+  --surface:#222822;
+  --surface-2:#2B322B;
+  --ink:#EAECE7;
+  --slate:#A6AEA3;
+  --slate-soft:#7B857C;
+  --line:#3A423B;
+  --emerald:#5B9A80;
+  --emerald-deep:#7FBBA0;
+  --emerald-tint:#233A31;
+  --gold:#C9AD70;
+  --gold-tint:#332E1E;
+  --rose:#D98D80;
+  --rose-tint:#3A2521;
+  --danger:#E27567;
+  --shadow-1:0 1px 2px rgba(0,0,0,.24), 0 1px 1px rgba(0,0,0,.18);
+  --shadow-2:0 6px 18px -8px rgba(0,0,0,.4), 0 2px 5px rgba(0,0,0,.2);
+  --shadow-3:0 16px 40px -14px rgba(0,0,0,.5);
+}
+html[data-theme="dark"] .pin-logo{background:#fff;}
+html[data-theme="dark"] .switch .track::before{background:#EAECE7;}
+
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  margin:0;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;
+}
+h1,h2,h3,.serif{font-family:'Fraunces',serif;}
+.mono{font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums;}
+button{font-family:inherit;}
+::selection{background:var(--gold-tint);}
+
+#app{max-width:520px; margin:0 auto; min-height:100vh; position:relative; background:var(--paper); display:flex; flex-direction:column;}
+
+/* ---------- generic screen shell ---------- */
+.screen{display:none; flex-direction:column; min-height:100vh; animation:fadeIn .35s var(--ease);}
+.screen.active{display:flex;}
+@keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+/* ---------- top bar ---------- */
+.topbar{
+  display:flex; align-items:center; gap:12px;
+  padding:16px 20px; position:sticky; top:0; z-index:20;
+  background:var(--paper); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.topbar .back{
+  width:36px; height:36px; border-radius:50%; border:1px solid var(--line);
+  background:var(--surface); display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:var(--ink); flex-shrink:0; transition:background .2s;
+}
+.topbar .back:active{background:var(--surface-2);}
+.topbar h1{font-size:19px; font-weight:600; margin:0; flex:1; letter-spacing:-.01em;}
+.topbar .icon-btn{
+  width:36px; height:36px; border-radius:50%; border:none; background:transparent;
+  color:var(--slate); display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+
+.content{padding:20px; flex:1; padding-bottom:40px;}
+
+/* ---------- college logo ---------- */
+.college-logo{
+  width:64px; height:64px; object-fit:contain; border-radius:14px;
+  background:var(--surface); box-shadow:var(--shadow-1); border:1px solid var(--line); padding:6px;
+}
+.brand-block{display:flex; flex-direction:column; align-items:center; text-align:center; gap:14px; margin-bottom:8px;}
+.brand-block .institute{
+  font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--slate);
+  font-weight:600; line-height:1.5; max-width:280px;
+}
+.brand-block .institute strong{color:var(--ink); display:block; font-size:13.5px;}
+
+/* ===================== AUTH / LOGIN ===================== */
+#screen-login .content{display:flex; flex-direction:column; justify-content:center; min-height:100vh; padding:32px 28px;}
+.login-card{display:flex; flex-direction:column; gap:22px;}
+.field{display:flex; flex-direction:column; gap:7px;}
+.field label{font-size:12.5px; font-weight:600; color:var(--slate); letter-spacing:.02em;}
+.field input{
+  border:1px solid var(--line); background:var(--surface); border-radius:var(--radius-sm);
+  padding:14px 15px; font-size:15.5px; color:var(--ink); outline:none;
+  transition:border-color .2s, box-shadow .2s;
+}
+.field input:focus{border-color:var(--emerald); box-shadow:0 0 0 3px var(--emerald-tint);}
+
+.pass-wrap{position:relative; display:flex; align-items:center;}
+.pass-wrap input{width:100%; padding-right:44px;}
+.pass-toggle{
+  position:absolute; right:4px; width:36px; height:36px; border:none; background:transparent;
+  color:var(--slate); display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:8px;
+}
+.pass-toggle:active{background:var(--surface-2);}
+
+.field-foot{display:flex; justify-content:flex-end; margin-top:-2px;}
+.link-btn{background:none; border:none; padding:0; color:var(--emerald); font-size:12.5px; font-weight:600; cursor:pointer;}
+.link-btn:active{color:var(--emerald-deep);}
+
+.btn{
+  border:none; border-radius:var(--radius-sm); padding:15px 18px; font-size:15px; font-weight:600;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+  transition:transform .15s var(--ease), background .2s, box-shadow .2s; letter-spacing:.01em;
+}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:var(--emerald); color:#fff; box-shadow:0 4px 14px -4px rgba(31,111,84,.45);}
+.btn-primary:active{background:var(--emerald-deep);}
+.btn-ghost{background:transparent; color:var(--emerald); border:1px solid var(--line);}
+.btn-block{width:100%;}
+.btn-sm{padding:9px 14px; font-size:13px; border-radius:10px;}
+.btn[disabled]{opacity:.55; pointer-events:none;}
+#mark-list.marks-frozen{opacity:.55; pointer-events:none;}
+#btn-lock-attendance.btn-locked{opacity:.7; cursor:not-allowed;}
+
+.auth-error{
+  background:var(--rose-tint); color:var(--rose); font-size:13px; padding:11px 13px;
+  border-radius:var(--radius-sm); display:none; font-weight:500;
+}
+.auth-error.show{display:block;}
+
+.login-foot{text-align:center; margin-top:26px; font-size:12.5px; color:var(--slate-soft);}
+
+/* ===================== PIN OVERLAY ===================== */
+#pin-overlay{
+  position:fixed; inset:0; background:var(--dark-bg); z-index:100;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  color:#fff; padding:32px;
+}
+#pin-overlay.active{display:flex;}
+.pin-logo{width:56px; height:56px; border-radius:14px; margin-bottom:18px; object-fit:contain; background:#fff; padding:6px;}
+.pin-title{font-family:'Fraunces',serif; font-size:20px; margin:0 0 4px;}
+.pin-sub{font-size:13px; color:#9BA79F; margin:0 0 34px;}
+.pin-dots{display:flex; gap:18px; margin-bottom:44px;}
+.pin-dot{width:14px; height:14px; border-radius:50%; border:1.5px solid #4A5A50; transition:all .2s var(--ease);}
+.pin-dot.filled{background:var(--gold); border-color:var(--gold); transform:scale(1.15);}
+.pin-dot.error{background:var(--rose); border-color:var(--rose);}
+.pin-pad{display:grid; grid-template-columns:repeat(3,64px); gap:18px; justify-content:center;}
+.pin-key{
+  width:64px; height:64px; border-radius:50%; border:1px solid #34433B; background:#22302A;
+  color:#fff; font-size:22px; font-weight:500; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:background .15s;
+}
+.pin-key:active{background:#2E4038;}
+.pin-key.ghost{border:none; background:transparent; color:#8A9A90; font-size:13px;}
+.pin-forgot{margin-top:30px; background:none; border:none; color:#B9C4BD; font-size:12.5px; text-decoration:underline; cursor:pointer;}
+
+/* PIN SETUP (first login) */
+#pin-setup-overlay{position:fixed; inset:0; background:var(--dark-bg); z-index:100; display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; padding:32px; text-align:center;}
+#pin-setup-overlay.active{display:flex;}
+
+/* ===================== DASHBOARD / SUBJECTS ===================== */
+.dash-header{display:flex; align-items:center; justify-content:space-between; padding:20px 20px 8px;}
+.dash-header .greet{display:flex; flex-direction:column;}
+.dash-header .greet span{font-size:12.5px; color:var(--slate); font-weight:500;}
+.dash-header .greet h1{font-size:21px; margin:2px 0 0; letter-spacing:-.01em;}
+.avatar-btn{
+  width:42px; height:42px; border-radius:50%; background:var(--emerald-tint); color:var(--emerald-deep);
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; border:none; cursor:pointer;
+}
+.avatar-btn svg{width:19px; height:19px;}
+
+.section-label{
+  font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--slate-soft); font-weight:700;
+  margin:4px 2px 12px;
+}
+
+.subject-grid{display:flex; flex-direction:column; gap:12px;}
+.subject-card{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
+  padding:18px; display:flex; align-items:center; gap:14px; cursor:pointer;
+  box-shadow:var(--shadow-1); transition:transform .18s var(--ease), box-shadow .18s;
+}
+.subject-card:active{transform:scale(.98); box-shadow:var(--shadow-2);}
+.subject-glyph{
+  width:46px; height:46px; border-radius:12px; flex-shrink:0;
+  background:linear-gradient(155deg,var(--emerald) 0%, var(--emerald-deep) 100%);
+  color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:600; font-size:17px;
+}
+.subject-info{flex:1; min-width:0;}
+.subject-info h3{margin:0 0 3px; font-size:16px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.subject-info p{margin:0; font-size:12.5px; color:var(--slate);}
+.subject-arrow{color:var(--slate-soft);}
+
+.empty-state{
+  display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px;
+  padding:52px 24px; color:var(--slate);
+}
+.empty-state .glyph{font-size:32px; opacity:.5;}
+.empty-state h3{margin:4px 0 0; font-size:16px; color:var(--ink); font-family:'Fraunces',serif;}
+.empty-state p{margin:0; font-size:13.5px; max-width:240px; line-height:1.5;}
+
+.fab{
+  position:fixed; bottom:28px; right:max(28px, calc(50vw - 260px + 28px));
+  width:58px; height:58px; border-radius:50%; background:var(--emerald); color:#fff; border:none;
+  box-shadow:0 10px 24px -6px rgba(31,111,84,.5); display:flex; align-items:center; justify-content:center;
+  font-size:26px; cursor:pointer; z-index:30; transition:transform .15s var(--ease);
+}
+.fab:active{transform:scale(.92);}
+
+/* ===================== TABS (inside a subject) ===================== */
+.tabbar{
+  display:flex; gap:4px; padding:4px; margin:14px 20px 4px; background:var(--surface-2); border-radius:12px;
+}
+.tabbar button{
+  flex:1; border:none; background:transparent; padding:10px 8px; border-radius:9px; font-size:13px;
+  font-weight:600; color:var(--slate); cursor:pointer; transition:all .2s;
+}
+.tabbar button.active{background:var(--surface); color:var(--emerald-deep); box-shadow:var(--shadow-1);}
+
+.tabpanel{display:none;}
+.tabpanel.active{display:block;}
+
+/* ===================== PRINCIPAL DASHBOARD TABS ===================== */
+.ptabbar{display:flex; gap:6px; padding:4px; margin-bottom:16px; background:var(--surface-2); border-radius:12px;}
+.ptabbar button{
+  flex:1; border:none; background:transparent; padding:10px 8px; border-radius:9px; font-size:13.5px;
+  font-weight:600; color:var(--slate); cursor:pointer; transition:all .2s;
+}
+.ptabbar button.active{background:var(--surface); color:var(--emerald-deep); box-shadow:var(--shadow-1);}
+.ptabpanel{display:none;}
+.ptabpanel.active{display:block;}
+
+.principal-search{position:relative; margin-bottom:16px;}
+.principal-search input{
+  width:100%; border:1px solid var(--line); background:var(--surface); border-radius:var(--radius-sm);
+  padding:12px 14px; font-size:14.5px; color:var(--ink); outline:none; transition:border-color .2s, box-shadow .2s;
+}
+.principal-search input:focus{border-color:var(--emerald); box-shadow:0 0 0 3px var(--emerald-tint);}
+
+.scope-banner{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:var(--emerald-tint); border:1px solid var(--emerald); border-radius:var(--radius-md);
+  padding:11px 14px; margin-bottom:16px; font-size:13px; color:var(--emerald-deep); font-weight:600;
+}
+.scope-banner button{border:none; background:transparent; color:var(--emerald-deep); font-weight:700; cursor:pointer; font-size:12.5px; text-decoration:underline;}
+
+/* department -> course -> class accordion tree */
+.dept-group{
+  margin-bottom:12px; border:1px solid var(--line); border-radius:var(--radius-md);
+  background:var(--surface); overflow:hidden; box-shadow:var(--shadow-1);
+}
+.dept-group-head{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:14px 16px; cursor:pointer; font-family:'Fraunces',serif; font-size:15.5px; font-weight:600;
+}
+.dept-group-head .meta{display:flex; align-items:center; gap:10px;}
+.dept-group-head .count{font-family:'Inter',sans-serif; font-size:12px; font-weight:500; color:var(--slate);}
+.dept-group-head .chev{color:var(--slate-soft); transition:transform .2s var(--ease); font-size:13px;}
+.dept-group.collapsed .dept-group-head .chev{transform:rotate(-90deg);}
+.dept-group-body{border-top:1px solid var(--line); padding:12px 14px 14px;}
+.dept-group.collapsed .dept-group-body{display:none;}
+
+.course-group{margin-bottom:14px;}
+.course-group:last-child{margin-bottom:0;}
+.course-group-head{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:6px 2px 10px; cursor:pointer; font-size:12px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.05em; color:var(--emerald-deep);
+}
+.course-group-head .chev{color:var(--slate-soft); transition:transform .2s var(--ease); font-size:11px;}
+.course-group.collapsed .course-group-head .chev{transform:rotate(-90deg);}
+.course-group-body{display:flex; flex-direction:column; gap:9px;}
+.course-group.collapsed .course-group-body{display:none;}
+
+.prof-card{
+  display:flex; align-items:center; gap:13px; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius-lg); padding:16px; margin-bottom:11px; cursor:pointer;
+  box-shadow:var(--shadow-1); transition:transform .18s var(--ease), box-shadow .18s;
+}
+.prof-card:active{transform:scale(.98); box-shadow:var(--shadow-2);}
+
+/* ---------- roster list / attendance rows ---------- */
+.student-row{
+  display:flex; align-items:center; gap:13px; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius-md); padding:13px 14px; margin-bottom:10px; cursor:pointer;
+  transition:background .18s, border-color .18s;
+}
+.student-row.absent{background:var(--rose-tint); border-color:var(--rose);}
+.ring{
+  width:44px; height:44px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  position:relative;
+}
+.ring svg{position:absolute; inset:0; transform:rotate(-90deg);}
+.ring .init{font-family:'Fraunces',serif; font-weight:600; font-size:14px; color:var(--emerald-deep); z-index:1;}
+.student-row.absent .ring .init{color:var(--rose);}
+.student-meta{flex:1; min-width:0;}
+.student-meta .name{font-size:14.5px; font-weight:600; margin:0 0 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.student-meta .sub{font-size:12px; color:var(--slate); margin:0;}
+.student-pct{font-size:13px; font-weight:600; color:var(--emerald-deep);}
+.student-row.absent .student-pct{color:var(--rose);}
+.status-pill{
+  font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; letter-spacing:.02em;
+  background:var(--emerald-tint); color:var(--emerald-deep); margin-left:8px;
+}
+.student-row.absent .status-pill{background:var(--rose-tint); color:var(--rose);}
+
+.sticky-cta{
+  position:sticky; bottom:0; padding:14px 20px 22px; background:linear-gradient(0deg, var(--paper) 60%, transparent);
+}
+
+/* ---------- roster form ---------- */
+.form-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px; box-shadow:var(--shadow-1); margin-bottom:16px;}
+.form-row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+
+.catalog-edit{
+  width:30px; height:30px; border-radius:50%; border:none; background:var(--emerald-tint); color:var(--emerald-deep);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; font-size:13px;
+}
+.catalog-edit:active{transform:scale(.92);}
+
+/* ---------- student edit sheet ---------- */
+#student-edit-overlay{
+  position:fixed; inset:0; background:rgba(32,38,31,.5); z-index:90;
+  display:none; align-items:flex-end; justify-content:center;
+}
+#student-edit-overlay.active{display:flex;}
+#student-edit-overlay .form-card{
+  width:100%; max-width:520px; margin-bottom:0; border-radius:20px 20px 0 0;
+  animation:slideUp .25s var(--ease); max-height:86vh; overflow-y:auto;
+  padding-bottom:max(18px, env(safe-area-inset-bottom));
+}
+@keyframes slideUp{from{transform:translateY(24px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+
+/* ---------- calendar ---------- */
+.cal-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+.cal-header .month{font-family:'Fraunces',serif; font-size:17px; font-weight:600;}
+.cal-nav{display:flex; gap:6px;}
+.cal-nav button{width:32px; height:32px; border-radius:50%; border:1px solid var(--line); background:var(--surface); cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--ink);}
+.cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; text-align:center;}
+.cal-dow{font-size:10.5px; font-weight:700; color:var(--slate-soft); padding:6px 0; text-transform:uppercase;}
+.cal-day{
+  aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border-radius:10px; font-size:13px; color:var(--ink); cursor:pointer; position:relative; background:transparent;
+  border:none; gap:3px;
+}
+.cal-day.blank{visibility:hidden; cursor:default;}
+.cal-day.today{border:1.4px solid var(--gold);}
+.cal-day.has-record{font-weight:600;}
+.cal-day .dot{width:5px; height:5px; border-radius:50%; background:var(--emerald);}
+.cal-day.selected{background:var(--emerald); color:#fff;}
+.cal-day.selected .dot{background:#fff;}
+
+.day-detail{margin-top:18px;}
+.day-detail-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.day-detail-head h3{margin:0; font-size:15px; font-family:'Fraunces',serif;}
+.stat-strip{display:flex; gap:8px; margin-bottom:14px;}
+.stat-chip{flex:1; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:10px 12px; text-align:center;}
+.stat-chip .num{font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:600; display:block;}
+.stat-chip .lbl{font-size:10.5px; color:var(--slate); text-transform:uppercase; letter-spacing:.04em;}
+
+/* ---------- misc ---------- */
+.divider{height:1px; background:var(--line); margin:20px 0; border:none;}
+.toast{
+  position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(10px); opacity:0;
+  background:#232B27; color:#fff; padding:12px 20px; border-radius:30px; font-size:13.5px; font-weight:500;
+  z-index:200; box-shadow:var(--shadow-3); transition:all .3s var(--ease); pointer-events:none;
+  display:flex; align-items:center; gap:8px; max-width:86%;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+.spinner{width:18px; height:18px; border-radius:50%; border:2.5px solid rgba(255,255,255,.35); border-top-color:#fff; animation:spin .7s linear infinite;}
+.spinner.dark{border:2.5px solid rgba(31,111,84,.25); border-top-color:var(--emerald);}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-screen{position:fixed; inset:0; background:var(--paper); display:flex; align-items:center; justify-content:center; z-index:150;}
+
+.settings-list{display:flex; flex-direction:column; gap:1px; background:var(--line); border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--line);}
+.settings-item{background:var(--surface); padding:15px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; font-size:14.5px; font-weight:500;}
+.settings-item .val{color:var(--slate); font-size:13px; font-weight:500;}
+.settings-item.danger{color:var(--rose);}
+.switch{position:relative; width:46px; height:27px; flex-shrink:0;}
+.switch input{opacity:0; width:0; height:0;}
+.switch .track{position:absolute; inset:0; background:var(--surface-2); border:1px solid var(--line); border-radius:20px; transition:background .2s var(--ease), border-color .2s var(--ease);}
+.switch .track::before{content:''; position:absolute; width:21px; height:21px; left:2px; top:2px; background:#fff; border-radius:50%; box-shadow:var(--shadow-1); transition:transform .2s var(--ease);}
+.switch input:checked + .track{background:var(--emerald); border-color:var(--emerald);}
+.switch input:checked + .track::before{transform:translateX(19px);}
+
+/* ---------- select dropdowns (department / course pickers) ---------- */
+.field select{
+  border:1px solid var(--line); background:var(--surface); border-radius:var(--radius-sm);
+  padding:14px 15px; font-size:15px; color:var(--ink); outline:none; appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%23636B65' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 15px center; padding-right:38px;
+  transition:border-color .2s, box-shadow .2s;
+}
+.field select:focus{border-color:var(--emerald); box-shadow:0 0 0 3px var(--emerald-tint);}
+.field select[disabled]{opacity:.5;}
+.field textarea{
+  border:1px solid var(--line); background:var(--surface); border-radius:var(--radius-sm);
+  padding:14px 15px; font-size:14px; color:var(--ink); outline:none; resize:vertical;
+  font-family:'JetBrains Mono',monospace; line-height:1.6; min-height:140px;
+  transition:border-color .2s, box-shadow .2s;
+}
+.field textarea:focus{border-color:var(--emerald); box-shadow:0 0 0 3px var(--emerald-tint);}
+.bulk-toggle{
+  background:none; border:none; color:var(--emerald); font-size:13px; font-weight:600;
+  cursor:pointer; padding:0; margin-bottom:16px; display:flex; align-items:center; gap:5px;
+}
+
+/* ---------- chip list (existing sections under a course) ---------- */
+.chip-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;}
+.chip{
+  border:1px solid var(--line); background:var(--surface); color:var(--slate);
+  border-radius:999px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;
+  transition:background .15s, border-color .15s, color .15s;
+}
+.chip:active{transform:scale(.96);}
+.chip.selected{background:var(--emerald); border-color:var(--emerald); color:#fff;}
+.hint-text{font-size:12px; color:var(--slate-soft); margin:6px 0 0;}
+
+/* ---------- catalog manager rows (principal: departments & courses) ---------- */
+.catalog-row{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-md);
+  padding:13px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;
+}
+.catalog-row .name{font-size:14.5px; font-weight:600;}
+.catalog-row .sub{font-size:12px; color:var(--slate); margin-top:2px;}
+.catalog-del{
+  width:30px; height:30px; border-radius:50%; border:none; background:var(--rose-tint); color:var(--rose);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; font-size:15px;
+}
+.catalog-del:active{transform:scale(.92);}
+.dept-block{margin-bottom:22px;}
+.dept-block-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.dept-block-head h3{font-size:15.5px; margin:0;}
+.inline-add{display:flex; gap:8px; margin-bottom:14px;}
+.inline-add input{flex:1;}
+
+.credit-tag{
+  text-align:center; padding:26px 0 8px; font-size:11.5px; letter-spacing:.03em; color:var(--slate-soft);
+  font-weight:600; user-select:none;
+}
+
+/* ---------- monthly report / print ---------- */
+.report-table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface); -webkit-overflow-scrolling:touch;}
+table.report-table{border-collapse:collapse; width:100%; font-size:12px; white-space:nowrap;}
+table.report-table th, table.report-table td{padding:8px 9px; text-align:center; border-bottom:1px solid var(--line); border-right:1px solid var(--line);}
+table.report-table th{background:var(--surface-2); font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--slate); font-weight:600; position:sticky; top:0;}
+table.report-table td:first-child, table.report-table th:first-child{position:sticky; left:0; background:var(--surface); z-index:1; text-align:left; font-weight:600;}
+table.report-table th:first-child{background:var(--surface-2); z-index:2;}
+table.report-table td.roll{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--slate);}
+table.report-table td.present{color:var(--emerald); font-weight:700;}
+table.report-table td.absent{color:var(--rose); font-weight:700;}
+table.report-table td.pct{font-family:'JetBrains Mono',monospace; font-weight:700;}
+table.report-table tr:last-child td{border-bottom:none;}
+
+/* Printable register — hidden on screen, shown only in the print dialog */
+#print-report{display:none;}
+@media print{
+  body *{visibility:hidden;}
+  #print-report, #print-report *{visibility:visible;}
+  #print-report{display:block; position:absolute; top:0; left:0; width:100%; padding:14px;}
+  @page{size:landscape; margin:10mm;}
+  #print-report h2{font-family:'Fraunces',serif; margin:0 0 2px; font-size:18px;}
+  #print-report .pr-sub{font-size:12px; color:#444; margin:0 0 2px;}
+  #print-report .pr-meta{font-size:11px; color:#444; margin:0 0 14px; display:flex; justify-content:space-between;}
+  #print-report table{border-collapse:collapse; width:100%; font-size:10.5px;}
+  #print-report th, #print-report td{border:1px solid #999; padding:4px 5px; text-align:center;}
+  #print-report th{background:#eee; font-weight:700;}
+  #print-report td:nth-child(2){text-align:left;}
+  #print-report .pr-syllabus{font-size:11px; color:#333; margin:12px 0 0; line-height:1.5;}
+  #print-report .pr-sign{display:flex; justify-content:space-between; margin-top:36px; font-size:11.5px; color:#333;}
+}
+
+/* utility */
+.hidden{display:none !important;}
+.flex-between{display:flex; align-items:center; justify-content:space-between;}
+
+/* ===================== MOBILE / NARROW SCREEN TUNING ===================== */
+@media (max-width:400px){
+  .content{padding:16px;}
+  .dash-header{padding:16px 16px 6px;}
+  .topbar{padding:14px 16px;}
+  .brand-block .institute{font-size:11.5px;}
+  .form-row{grid-template-columns:1fr;}
+  .pin-pad{grid-template-columns:repeat(3,56px); gap:14px;}
+  .pin-key{width:56px; height:56px; font-size:19px;}
+  .subject-card{padding:14px; gap:11px;}
+  .subject-glyph{width:40px; height:40px; font-size:15px;}
+  .student-row{padding:11px 12px; gap:10px;}
+  .ring{width:38px; height:38px;}
+  .ring svg{width:38px; height:38px;}
+  .fab{width:52px; height:52px; font-size:23px; bottom:22px; right:20px;}
+  .cal-day{font-size:12px;}
+  .stat-chip .num{font-size:16px;}
+}
+@media (max-width:340px){
+  .pin-pad{grid-template-columns:repeat(3,50px); gap:10px;}
+  .pin-key{width:50px; height:50px; font-size:18px;}
+  .cal-grid{gap:2px;}
+}
+
+/* Respect safe areas on notched devices when wrapped as an app */
+.topbar{padding-top:max(16px, env(safe-area-inset-top));}
+.sticky-cta{padding-bottom:max(22px, env(safe-area-inset-bottom));}
+#pin-overlay, #pin-setup-overlay{padding-top:max(32px, env(safe-area-inset-top)); padding-bottom:max(32px, env(safe-area-inset-bottom));}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ================= LOADING ================= -->
+  <div class="loading-screen" id="boot-loader">
+    <div class="spinner dark"></div>
+  </div>
+
+  <!-- ================= LOGIN SCREEN ================= -->
+  <section class="screen" id="screen-login">
+    <div class="content">
+      <div class="brand-block" style="margin-bottom:36px;">
+        <img src="college_logo.png" alt="Govt. V.Y.T. PG Autonomous College" class="college-logo" onerror="this.style.display='none'">
+        <div class="institute">
+          <strong>Govt. V.Y.T. P.G. Autonomous College</strong>
+          Durg · Faculty Attendance Portal
+        </div>
+      </div>
+      <div class="login-card">
+        <div class="auth-error" id="login-error"></div>
+        <div class="field">
+          <label for="login-email">Professor Email</label>
+          <input type="email" id="login-email" placeholder="name@vytpgcollege.ac.in" autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="login-pass">Password</label>
+          <div class="pass-wrap">
+            <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" />
+            <button type="button" class="pass-toggle" id="btn-toggle-pass" aria-label="Show password">
+              <svg id="eye-icon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <div class="field-foot">
+            <button type="button" class="link-btn" id="btn-forgot-pass">Forgot password?</button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-block" id="btn-login">
+          <span id="login-btn-label">Sign In</span>
+        </button>
+      </div>
+      <p class="login-foot">Access is restricted to registered faculty members.<br/>Contact the IT cell for credential issues.</p>
+      <p class="login-foot" style="margin-top:8px;">
+        <button type="button" class="link-btn" id="btn-open-public-view">Student? Check your attendance →</button>
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= PUBLIC ATTENDANCE VIEW (student self-lookup, no login) ================= -->
+  <section class="screen" id="screen-public-view">
+    <div class="topbar">
+      <button class="back" id="btn-back-public-view">←</button>
+      <h1>My Attendance</h1>
+    </div>
+    <div class="content">
+      <p class="hint-text" style="margin-top:0; margin-bottom:18px;">Enter your Roll Number exactly as it appears on your ID (case-sensitive), and the last 5 digits of the mobile number on file with your Section Incharge.</p>
+      <div class="auth-error" id="pv-error"></div>
+      <div class="field">
+        <label for="pv-roll">Roll Number</label>
+        <input type="text" id="pv-roll" placeholder="e.g. 22BSC101" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label for="pv-phone5">Last 5 digits of mobile number</label>
+        <input type="text" id="pv-phone5" placeholder="e.g. 43210" inputmode="numeric" maxlength="5" autocomplete="off" />
+      </div>
+      <button class="btn btn-primary btn-block" id="btn-pv-lookup" style="margin-top:20px;">
+        <span id="pv-lookup-label">View Attendance</span>
+      </button>
+
+      <div id="pv-result" class="hidden" style="margin-top:26px;">
+        <div class="brand-block" style="margin-bottom:18px;">
+          <div class="ring" style="width:56px; height:56px;"><div class="init" id="pv-initials" style="font-size:18px;"></div></div>
+          <div>
+            <h3 class="serif" id="pv-name" style="margin:0 0 2px; font-size:19px;"></h3>
+            <p class="sub mono" id="pv-roll-display" style="margin:0; color:var(--slate); font-size:13px;"></p>
+          </div>
+        </div>
+        <div class="stat-strip">
+          <div class="stat-chip"><span class="num mono" id="pv-attended">0</span><span class="lbl">Attended</span></div>
+          <div class="stat-chip"><span class="num mono" id="pv-total">0</span><span class="lbl">Total Lectures</span></div>
+          <div class="stat-chip"><span class="num mono" id="pv-pct">0%</span><span class="lbl">Attendance</span></div>
+        </div>
+        <p class="hint-text" id="pv-class-line" style="margin-top:10px;"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PIN SETUP (first-time, after login) ================= -->
+  <div id="pin-setup-overlay">
+    <img src="college_logo.png" alt="logo" class="pin-logo" onerror="this.style.display='none'">
+    <h2 class="pin-title" id="pin-setup-title">Create a PIN</h2>
+    <p class="pin-sub" id="pin-setup-sub">Set a 4-digit PIN for quick, secure access</p>
+    <div class="pin-dots" id="pin-setup-dots">
+      <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+    <div class="pin-pad" id="pin-setup-pad"></div>
+  </div>
+
+  <!-- ================= PIN UNLOCK OVERLAY ================= -->
+  <div id="pin-overlay">
+    <img src="college_logo.png" alt="logo" class="pin-logo" onerror="this.style.display='none'">
+    <h2 class="pin-title">Welcome back</h2>
+    <p class="pin-sub" id="pin-unlock-name">Enter your PIN to continue</p>
+    <div class="pin-dots" id="pin-unlock-dots">
+      <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+    <div class="pin-pad" id="pin-unlock-pad"></div>
+    <button class="pin-forgot" id="btn-pin-forgot">Use password instead</button>
+  </div>
+
+  <!-- ================= EDIT STUDENT ================= -->
+  <div id="student-edit-overlay">
+    <div class="form-card">
+      <div class="section-label" style="margin-top:0;">Edit Student</div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Full Name</label>
+        <input type="text" id="edit-stu-name" placeholder="e.g. Anjali Verma" />
+      </div>
+      <div class="form-row" style="margin-bottom:16px;">
+        <div class="field">
+          <label>Roll Number</label>
+          <input type="text" id="edit-stu-roll" placeholder="21BCA045" />
+        </div>
+        <div class="field">
+          <label>Contact</label>
+          <input type="text" id="edit-stu-contact" placeholder="Email / Phone" />
+        </div>
+      </div>
+      <div class="flex-between" style="gap:10px;">
+        <button type="button" class="btn btn-ghost" style="flex:1;" id="btn-cancel-edit-student">Cancel</button>
+        <button type="button" class="btn btn-primary" style="flex:1;" id="btn-save-edit-student">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DASHBOARD (subject list) ================= -->
+  <section class="screen" id="screen-dashboard">
+    <div class="dash-header">
+      <div class="greet">
+        <span id="dash-date"></span>
+        <h1 id="dash-name">Welcome</h1>
+      </div>
+      <button class="avatar-btn" id="btn-avatar" aria-label="Account options">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+    </div>
+    <div class="content" style="padding-top:8px;">
+      <div class="section-label">My Subjects</div>
+      <div class="subject-grid" id="subject-list"></div>
+      <div class="empty-state hidden" id="subject-empty">
+        <div class="glyph">◎</div>
+        <h3>No subjects yet</h3>
+        <p>Tap the + button to add your first subject or class.</p>
+      </div>
+      <div class="credit-tag">Engineered by Anubhav Jha</div>
+    </div>
+    <button class="fab" id="btn-add-subject">+</button>
+  </section>
+
+  <!-- ================= SUBJECT DETAIL (roster / attendance / calendar) ================= -->
+  <section class="screen" id="screen-subject">
+    <div class="topbar">
+      <button class="back" id="btn-back-dash">←</button>
+      <h1 id="subj-title">Subject</h1>
+      <button class="back" id="btn-delete-class" title="Delete this class" style="margin-left:auto;">🗑</button>
+    </div>
+    <div class="tabbar">
+      <button class="tab-btn active" data-tab="mark" id="tabbtn-mark">Mark</button>
+      <button class="tab-btn" data-tab="roster">Students</button>
+      <button class="tab-btn" data-tab="calendar">Calendar</button>
+      <button class="tab-btn" data-tab="report">Report</button>
+    </div>
+    <div class="content">
+
+      <!-- MARK ATTENDANCE -->
+      <div class="tabpanel active" id="tab-mark">
+        <div class="flex-between" style="margin-bottom:12px;">
+          <div class="section-label" style="margin:0;">Today · <span id="mark-date-label" class="mono"></span></div>
+          <span style="font-size:12px; color:var(--slate);" id="mark-count">0 present</span>
+        </div>
+        <div class="field" style="margin-bottom:14px;" id="mark-topic-field">
+          <label>Topic / Unit Taught Today</label>
+          <input type="text" id="mark-topic-input" placeholder="e.g. Unit 3 — Normalization" list="mark-topic-suggestions" />
+          <datalist id="mark-topic-suggestions"></datalist>
+        </div>
+        <div class="flex-between" style="gap:10px; margin-bottom:14px;" id="mark-bulk-actions">
+          <button type="button" class="btn btn-ghost" style="flex:1;" id="btn-mark-all-present">✓ Present All</button>
+          <button type="button" class="btn btn-ghost" style="flex:1;" id="btn-mark-all-absent">✕ Absent All</button>
+        </div>
+
+        <!-- ATTENDANCE FREEZE -->
+        <button type="button" class="btn btn-ghost btn-block" style="margin-bottom:14px;" id="btn-lock-attendance">🔓 Lock Attendance</button>
+
+        <div class="principal-search" id="mark-search-field">
+          <input type="text" id="mark-search" placeholder="Search by name or roll number…" />
+        </div>
+
+        <div id="mark-list"></div>
+        <div class="empty-state hidden" id="mark-empty">
+          <div class="glyph">◇</div><h3>No students yet</h3>
+          <p>Add students under the Students tab to begin marking attendance.</p>
+        </div>
+        <div class="empty-state hidden" id="mark-no-match">
+          <div class="glyph">⌕</div><h3>No matches</h3>
+          <p>No students match your search.</p>
+        </div>
+      </div>
+
+      <!-- ROSTER MANAGEMENT -->
+      <div class="tabpanel" id="tab-roster">
+        <button class="btn btn-ghost btn-block hidden" id="btn-fetch-roster" style="margin-bottom:16px;">⇩ Fetch from Master Roster</button>
+        <div class="form-card" id="add-student-card">
+          <div class="section-label" style="margin-top:0;">Add Student</div>
+          <div class="field" style="margin-bottom:10px;">
+            <label>Full Name</label>
+            <input type="text" id="stu-name" placeholder="e.g. Anjali Verma" />
+          </div>
+          <div class="form-row" style="margin-bottom:10px;">
+            <div class="field">
+              <label>Roll Number</label>
+              <input type="text" id="stu-roll" placeholder="21BCA045" />
+            </div>
+            <div class="field">
+              <label>Contact</label>
+              <input type="text" id="stu-contact" placeholder="Email / Phone" />
+            </div>
+          </div>
+          <button class="btn btn-primary btn-block" id="btn-save-next">Save &amp; Add Next</button>
+        </div>
+        <div class="section-label">Students (<span id="roster-count">0</span>)</div>
+        <div id="roster-list"></div>
+      </div>
+
+      <!-- CALENDAR -->
+      <div class="tabpanel" id="tab-calendar">
+        <div class="cal-header">
+          <div class="month" id="cal-month-label"></div>
+          <div class="cal-nav">
+            <button id="cal-prev">‹</button>
+            <button id="cal-next">›</button>
+          </div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="day-detail hidden" id="day-detail">
+          <hr class="divider"/>
+          <div class="day-detail-head">
+            <h3 id="day-detail-title">—</h3>
+            <button class="btn btn-ghost btn-sm" id="btn-edit-day">Edit</button>
+          </div>
+          <p class="hidden" id="day-detail-topic" style="font-size:13px; color:var(--slate); margin:-6px 0 12px;"></p>
+          <div class="stat-strip">
+            <div class="stat-chip"><span class="num mono" id="day-present-count">0</span><span class="lbl">Present</span></div>
+            <div class="stat-chip"><span class="num mono" id="day-absent-count">0</span><span class="lbl">Absent</span></div>
+          </div>
+          <div id="day-detail-list"></div>
+        </div>
+      </div>
+
+      <!-- MONTHLY REPORT / PRINT -->
+      <div class="tabpanel" id="tab-report">
+        <div class="cal-header">
+          <div class="month" id="report-month-label"></div>
+          <div class="cal-nav" id="report-month-nav">
+            <button id="report-prev">‹</button>
+            <button id="report-next">›</button>
+          </div>
+        </div>
+        <div class="flex-between" style="margin:-6px 0 14px;">
+          <button type="button" class="link-btn" id="btn-toggle-range">Use custom date range</button>
+        </div>
+        <div class="hidden" id="report-range-fields" style="margin-bottom:14px;">
+          <div class="form-row" style="margin-bottom:10px;">
+            <div class="field">
+              <label>From</label>
+              <input type="date" id="report-range-from" />
+            </div>
+            <div class="field">
+              <label>To</label>
+              <input type="date" id="report-range-to" />
+            </div>
+          </div>
+          <div class="flex-between" style="gap:10px;">
+            <button type="button" class="btn btn-ghost" style="flex:1;" id="btn-back-to-month">Back to Month</button>
+            <button type="button" class="btn btn-primary" style="flex:1;" id="btn-apply-range">Apply</button>
+          </div>
+        </div>
+
+        <div class="stat-strip">
+          <div class="stat-chip"><span class="num mono" id="report-lectures-count">0</span><span class="lbl">Lectures Held</span></div>
+          <div class="stat-chip"><span class="num mono" id="report-students-count">0</span><span class="lbl">Students</span></div>
+          <div class="stat-chip"><span class="num mono" id="report-avg-pct">0%</span><span class="lbl">Class Avg.</span></div>
+        </div>
+
+        <div class="report-table-wrap" id="report-table-wrap">
+          <table class="report-table" id="report-table"></table>
+        </div>
+        <div class="empty-state hidden" id="report-empty">
+          <div class="glyph">◇</div><h3>No attendance this month</h3>
+          <p>Mark attendance on some dates in this month to generate a report.</p>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-block" id="btn-print-report" style="margin-top:18px;">🖨 Print / Save as PDF</button>
+      </div>
+
+      <!-- SYLLABUS TRACKER (removed — topic taught is now logged per-date from the Mark tab) -->
+
+    </div>
+    <div class="sticky-cta hidden" id="mark-cta-wrap">
+      <button class="btn btn-primary btn-block" id="btn-submit-attendance">Submit Attendance</button>
+    </div>
+  </section>
+
+  <!-- ================= PRINCIPAL DASHBOARD (all professors / all classes, read-only) ================= -->
+  <section class="screen" id="screen-principal">
+    <div class="dash-header">
+      <div class="greet">
+        <span id="principal-date"></span>
+        <h1>Principal Dashboard</h1>
+      </div>
+      <button class="avatar-btn" id="btn-principal-avatar" aria-label="Account options">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+    </div>
+    <div class="content" style="padding-top:8px;">
+      <div class="stat-strip" id="principal-stats" style="flex-wrap:wrap; gap:8px; margin-bottom:20px;">
+        <div class="stat-chip" style="min-width:calc(50% - 4px); flex:none;"><span class="num mono" id="p-stat-profs">0</span><span class="lbl">Professors</span></div>
+        <div class="stat-chip" style="min-width:calc(50% - 4px); flex:none;"><span class="num mono" id="p-stat-classes">0</span><span class="lbl">Classes</span></div>
+        <div class="stat-chip" style="min-width:calc(50% - 4px); flex:none;"><span class="num mono" id="p-stat-students">0</span><span class="lbl">Students</span></div>
+        <div class="stat-chip" style="min-width:calc(50% - 4px); flex:none;"><span class="num mono" id="p-stat-avg">0%</span><span class="lbl">Avg. Attendance</span></div>
+      </div>
+      <div class="flex-between" style="margin-bottom:4px;">
+        <div></div>
+        <div class="spinner dark hidden" id="principal-loading"></div>
+      </div>
+      <div class="ptabbar">
+        <button class="ptab-active-btn active" data-ptab="classes" id="ptabbtn-classes">Classes</button>
+        <button class="ptab-active-btn" data-ptab="professors" id="ptabbtn-professors">Professors</button>
+      </div>
+
+      <!-- ================= CLASSES TAB : Department -> Course -> Class ================= -->
+      <div class="ptabpanel active" id="ptab-classes">
+        <div class="scope-banner hidden" id="principal-scope-banner">
+          <span id="principal-scope-label"></span>
+          <button type="button" id="btn-clear-principal-scope">Show all professors</button>
+        </div>
+        <div class="principal-search">
+          <input type="text" id="principal-class-search" placeholder="Search department, course, class, or professor…" />
+        </div>
+        <div id="principal-class-tree"></div>
+        <div class="empty-state hidden" id="principal-empty">
+          <div class="glyph">◎</div>
+          <h3>No classes yet</h3>
+          <p>Classes will appear here once professors start adding subjects.</p>
+        </div>
+      </div>
+
+      <!-- ================= PROFESSORS TAB ================= -->
+      <div class="ptabpanel" id="ptab-professors">
+        <div class="principal-search">
+          <input type="text" id="principal-prof-search" placeholder="Search professors by name…" />
+        </div>
+        <div id="principal-prof-list"></div>
+        <div class="empty-state hidden" id="principal-prof-empty">
+          <div class="glyph">◎</div>
+          <h3>No professors yet</h3>
+          <p>Registered faculty accounts will appear here.</p>
+        </div>
+      </div>
+
+      <div class="credit-tag">Engineered by Anubhav Jha</div>
+    </div>
+  </section>
+
+  <!-- ================= ADD / ASSIGN CLASS (Department → Course → Section) ================= -->
+  <section class="screen" id="screen-add-class">
+    <div class="topbar">
+      <button class="back" id="btn-back-add-class">←</button>
+      <h1 id="add-class-title">Add Class</h1>
+    </div>
+    <div class="content">
+      <div class="field" style="margin-bottom:16px;">
+        <label>Department</label>
+        <select id="ac-department"><option value="">Select department…</option></select>
+      </div>
+      <div class="field" style="margin-bottom:16px;">
+        <label>Course</label>
+        <select id="ac-course" disabled><option value="">Select department first…</option></select>
+      </div>
+
+      <div id="ac-existing-wrap" class="hidden" style="margin-bottom:16px;">
+        <div class="section-label" style="margin-top:0;">Existing classes in this course</div>
+        <div class="chip-row" id="ac-existing-chips"></div>
+        <p class="hint-text">Tap one to reuse its name, or type a new section name below.</p>
+      </div>
+
+      <div class="field" style="margin-bottom:8px;">
+        <label>Section / Class Name</label>
+        <input type="text" id="ac-section" placeholder="e.g. B6, Section A" />
+      </div>
+      <p class="hint-text" id="ac-empty-catalog-hint" style="margin-bottom:16px;"></p>
+
+      <button class="btn btn-primary btn-block" id="btn-ac-save">Save Class</button>
+    </div>
+  </section>
+
+  <!-- ================= MANAGE DEPARTMENTS & COURSES (principal only) ================= -->
+  <section class="screen" id="screen-catalog">
+    <div class="topbar">
+      <button class="back" id="btn-back-catalog">←</button>
+      <h1>Departments &amp; Courses</h1>
+    </div>
+    <div class="content">
+      <button type="button" class="bulk-toggle" id="btn-toggle-bulk">＋ Bulk import departments &amp; courses</button>
+      <div class="hidden" id="bulk-import-wrap" style="margin-bottom:24px;">
+        <div class="field" style="margin-bottom:10px;">
+          <label>Paste your list</label>
+          <textarea id="bulk-catalog-text" placeholder="Zoology
+- B.Sc I Sem
+- B.Sc II Sem
+- B.Sc III Sem
+
+Physics
+- B.Sc I Sem
+- M.Sc Sem III"></textarea>
+        </div>
+        <p class="hint-text" style="margin-bottom:12px;">Department name on its own line, courses/subjects under it starting with "-". Leave a blank line between departments. Already-added ones are skipped automatically, so it's safe to re-paste.</p>
+        <button class="btn btn-primary btn-block" id="btn-bulk-import">Import</button>
+      </div>
+
+      <div class="section-label" style="margin-top:0;">Add Department</div>
+      <div class="inline-add">
+        <input type="text" id="new-dept-name" placeholder="e.g. Zoology" />
+        <button class="btn btn-primary btn-sm" id="btn-add-dept">Add</button>
+      </div>
+
+      <div id="catalog-list"></div>
+      <div class="empty-state hidden" id="catalog-empty">
+        <div class="glyph">◎</div>
+        <h3>No departments yet</h3>
+        <p>Add your first department above to get started.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MANAGE SECTION INCHARGES (principal only) ================= -->
+  <section class="screen" id="screen-manage-hods">
+    <div class="topbar">
+      <button class="back" id="btn-back-manage-hods">←</button>
+      <h1>Manage Section Incharges</h1>
+    </div>
+    <div class="content">
+      <p class="hint-text" style="margin-bottom:16px;">Each department can have one Section Incharge. They'll be able to upload the master student roster for their department's courses — professors then fetch it into their own class with one tap.</p>
+      <div id="manage-hods-list"></div>
+      <div class="empty-state hidden" id="manage-hods-empty">
+        <div class="glyph">◎</div>
+        <h3>No departments yet</h3>
+        <p>Add departments first under Departments &amp; Courses, then assign Section Incharges here.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MASTER ROSTER UPLOAD (Section Incharge only) ================= -->
+  <section class="screen" id="screen-master-roster">
+    <div class="topbar">
+      <button class="back" id="btn-back-master-roster">←</button>
+      <h1>Upload Master Roster</h1>
+    </div>
+    <div class="content">
+      <div class="field" style="margin-bottom:16px;">
+        <label>Course</label>
+        <select id="mr-course"><option value="">Select course…</option></select>
+      </div>
+      <div class="field hidden" id="mr-section-view-wrap" style="margin-bottom:16px;">
+        <label>Section (viewing existing roster)</label>
+        <select id="mr-section-view"><option value="">Select section…</option></select>
+      </div>
+      <p class="hint-text" id="mr-existing-info" style="margin-bottom:12px;"></p>
+      <button type="button" class="btn btn-ghost btn-block hidden" id="btn-split-legacy" style="margin-bottom:16px;">⚠ Split this course's combined roster into per-section rosters</button>
+
+      <div class="hidden" id="mr-current-list-wrap" style="margin-bottom:24px;">
+        <div class="field" style="margin-bottom:10px;">
+          <input type="text" id="mr-search" placeholder="Search by name or roll number…" />
+        </div>
+        <div id="mr-current-list" style="max-height:340px; overflow-y:auto;"></div>
+        <button type="button" class="btn btn-ghost btn-block hidden" id="btn-delete-section-roster" style="margin-top:14px; color:var(--danger);">🗑 Delete This Section's Master Roster</button>
+      </div>
+
+      <button type="button" class="btn btn-ghost btn-block hidden" id="btn-delete-course-rosters" style="margin-bottom:24px; color:var(--danger);">🗑 Delete ALL Master Rosters For This Course</button>
+
+      <div class="section-label" style="margin-top:0;">Upload Excel / CSV file</div>
+      <div class="form-card" style="margin-bottom:10px;">
+        <input type="file" id="mr-file-input" accept=".xlsx,.xls,.csv" style="width:100%; font-size:13.5px;" />
+        <p class="hint-text" style="margin-top:10px; margin-bottom:0;">Reads columns by name (any order): <b>Roll Number, Name, Mobile/Contact, Email, Section, Batch</b>. Matches common header variants like ROLL_NUMBER, STUDENT_NAME, MOBILENO, E_MAIL, SECTION_NAME, and BATCH_NAME automatically. If your file has <b>both</b> a Section and a Batch column, every student is saved under both — a professor can then fetch by typing either the section name (e.g. "M5M6") or the batch name (e.g. "M5") as their class name.</p>
+      </div>
+
+      <div class="field" style="margin-bottom:16px;">
+        <label>Filter by Combination (optional)</label>
+        <input type="text" id="mr-combo-filter" placeholder="e.g. PMC, PMCs, PMIc" />
+        <p class="hint-text" style="margin-top:6px;">If your file covers multiple combinations, list the codes for students who actually take this course/subject, comma-separated. Leave blank to include everyone in the file.</p>
+      </div>
+
+      <p class="hint-text" id="mr-preview-info" style="margin-bottom:12px; font-weight:600;"></p>
+
+      <div class="hidden" id="mr-section-checks-wrap" style="margin-bottom:16px;">
+        <div class="section-label" style="margin-top:0;">Sections &amp; Batches found in this file</div>
+        <p class="hint-text" style="margin-bottom:10px;">Each section AND each batch is saved as its own roster, so a class only ever fetches the exact section or batch it belongs to — not the whole course. Uncheck any you don't want to save right now.</p>
+        <div id="mr-section-checks"></div>
+      </div>
+
+      <button type="button" class="bulk-toggle" id="btn-toggle-mr-manual">＋ Or paste manually instead</button>
+      <div class="hidden" id="mr-manual-wrap" style="margin-bottom:16px;">
+        <div class="field" style="margin-bottom:10px;">
+          <label>Section / Class name for this pasted list</label>
+          <input type="text" id="mr-manual-section" placeholder="e.g. M1M2" />
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Paste student list</label>
+          <textarea id="mr-roster-text" placeholder="Anjali Verma, 22BSC101, 9876543210, anjali@email.com
+Rahul Sahu, 22BSC102, 9876543211, rahul@email.com"></textarea>
+        </div>
+        <p class="hint-text">One student per line: <b>Name, Roll Number, Contact, Email</b> (contact/email optional).</p>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="btn-save-master-roster">Save Master Roster</button>
+    </div>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="screen" id="screen-settings">
+    <div class="topbar">
+      <button class="back" id="btn-back-settings">←</button>
+      <h1>Settings</h1>
+    </div>
+    <div class="content">
+      <div class="brand-block" style="margin-bottom:24px;">
+        <img src="college_logo.png" alt="Govt. V.Y.T. PG Autonomous College" class="college-logo" onerror="this.style.display='none'">
+      </div>
+      <div class="section-label">Account</div>
+      <div class="settings-list" style="margin-bottom:22px;">
+        <div class="settings-item" id="btn-edit-name">
+          <span>Display Name</span>
+          <span class="val" id="settings-name">—</span>
+        </div>
+        <div class="settings-item" style="cursor:default;">
+          <span id="settings-email">—</span>
+        </div>
+        <div class="settings-item" id="btn-change-pin">Change PIN</div>
+        <div class="settings-item danger" id="btn-logout">Sign Out</div>
+      </div>
+      <div class="section-label">Preferences</div>
+      <div class="settings-list" style="margin-bottom:22px;">
+        <div class="settings-item" style="cursor:default;">
+          <span>Dark Mode</span>
+          <label class="switch">
+            <input type="checkbox" id="toggle-dark-mode" />
+            <span class="track"></span>
+          </label>
+        </div>
+      </div>
+      <div class="section-label hidden" id="settings-admin-label">Administration</div>
+      <div class="settings-list hidden" id="settings-admin-block" style="margin-bottom:22px;">
+        <div class="settings-item" id="btn-open-catalog">Departments &amp; Courses</div>
+        <div class="settings-item" id="btn-open-manage-hods">Manage Section Incharges</div>
+      </div>
+      <div class="section-label hidden" id="settings-hod-label">Section Incharge Tools</div>
+      <div class="settings-list hidden" id="settings-hod-block" style="margin-bottom:22px;">
+        <div class="settings-item" id="btn-open-master-roster">Upload Master Roster</div>
+      </div>
+      <div class="credit-tag">Engineered by Anubhav Jha</div>
+    </div>
+  </section>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Print-only surface: filled in by generatePrintReport() and revealed via @media print -->
+<div id="print-report"></div>
+
+<script>
+/* =====================================================================
+   FIREBASE CONFIGURATION — replace with your project's credentials
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDHjTGgB-in5YqdEG_skGr-8EXq2gDZ0U4",
+  authDomain: "vytpgdurg.firebaseapp.com",
+  projectId: "vytpgdurg",
+  storageBucket: "vytpgdurg.firebasestorage.app",
+  messagingSenderId: "782150070469",
+  appId: "1:782150070469:web:d4490a3df8f56476fb40ac"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+/* =====================================================================
+   APP STATE
+   ===================================================================== */
+const state = {
+  user: null,
+  role: 'professor',      // 'professor' | 'principal' — determined after login via the admins/{uid} collection
+  classes: [],           // [{id, className, totalLectures}]  — current professor's own classes
+  activeClassId: null,
+  readOnly: false,        // true when a principal is viewing someone else's class
+  subjectOpenedFrom: 'dashboard', // 'dashboard' | 'principal' — where the back button should return to
+  students: [],           // students of active class [{id, name, rollNumber, contact, lecturesAttended}]
+  attendanceCache: {},    // dateStr -> {presentStudents:[], absentStudents:[]}
+  markSearchQuery: '',    // Mark tab search box — filters which students are shown to tap, not the roster itself
+  markSelections: {},     // studentId -> 'present'|'absent'  (for today / editing date)
+  markDate: todayStr(),
+  calMonth: new Date().getMonth(),
+  calYear: new Date().getFullYear(),
+  calSelectedDate: null,
+  reportMonth: new Date().getMonth(),
+  reportYear: new Date().getFullYear(),
+  reportMode: 'month',      // 'month' | 'custom'
+  reportRangeStart: null,   // 'YYYY-MM-DD'
+  reportRangeEnd: null,     // 'YYYY-MM-DD'
+  pinTarget: 'unlock',    // 'unlock' | 'setup' | 'change'
+  displayName: null,
+  allClasses: [],          // principal only: every class across every professor
+  professorNames: {},      // principal only: uid -> displayName (or null if not set)
+  allProfessorIds: [],     // principal only: every registered professor uid (even ones with no classes yet)
+  principalTab: 'classes', // 'classes' | 'professors' — which principal-dashboard tab is active
+  principalClassQuery: '', // search text for the Classes tab (dept / course / class / professor)
+  principalProfQuery: '',  // search text for the Professors tab (name)
+  principalScopeProfId: null, // set when drilling into one professor's classes from the Professors tab
+  collapsedDepts: new Set(),   // department names collapsed in the accordion tree
+  collapsedCourses: new Set(), // 'deptName::courseName' keys collapsed in the accordion tree
+
+  departments: [],         // [{id, name}]
+  courses: [],             // all courses [{id, name, departmentId}] — filtered client-side per department
+  acMode: 'create',        // 'create' (new class) | 'assign' (attach dept/course to an existing legacy class)
+  acTargetClassId: null,   // set when acMode === 'assign'
+  acSelectedDept: null,
+  acSelectedCourse: null,
+  acExistingClasses: [],   // classes already under the selected course, shown as chips
+
+  hods: [],                // principal only: [{uid, departmentId, departmentName}] every current HoD assignment
+  hodDept: null,           // set on THIS user if they are an HoD: {id, name}
+  professorDirectory: [],  // principal only: [{uid, label}] every known professor, for the HoD picker
+  mrRawFileStudents: null, // HoD: full parsed list from the last uploaded spreadsheet, before combination filtering
+  mrCurrentRosterKey: null,        // HoD: masterRosters doc key for the currently selected section
+  mrCurrentRosterStudents: [],     // HoD: the currently loaded roster's students, for the search/delete list
+  mrSectionGroups: null,           // HoD: {sectionLabel: [students]} built from the last uploaded file
+  mrSectionOptions: [],            // HoD: sections found (new-format + legacy-derived) for the selected course
+  mrLegacyKey: null,               // HoD: set when the section being viewed only lives inside an old combined doc
+  mrLegacyFullList: null,          // HoD: full student list of the old combined doc, for splitting/removal
+  mrLegacyKeyForSplit: null        // HoD: doc id of the old combined doc, if one exists for the selected course
+};
+
+function todayStr(d = new Date()){
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+/* =====================================================================
+   UTIL — TOAST / NAV
+   ===================================================================== */
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2400);
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ---------------------------------------------------------------------
+   BACK NAVIGATION (hardware/browser back button parity)
+   Every screen opened via goToScreen() gets a history entry. The on-screen
+   "←" buttons just call history.back() — the actual transition (and any
+   cleanup, like unsubscribing listeners) lives in the backFrom* functions
+   below, which the popstate listener runs based on whichever screen is
+   currently active. This way a phone's hardware/gesture back button does
+   exactly what tapping the arrow does, since both end up going through
+   the same popstate event.
+   --------------------------------------------------------------------- */
+function goToScreen(id){
+  showScreen(id);
+  history.pushState({screen:id}, '', '#'+id);
+}
+
+function backFromPublicView(){ showScreen('screen-login'); }
+function backFromSettings(){ goHome(); }
+function backFromAddClass(){ showScreen(state.role==='principal' ? 'screen-principal' : 'screen-dashboard'); }
+function backFromCatalog(){ showScreen('screen-settings'); }
+function backFromManageHods(){ showScreen('screen-settings'); }
+function backFromMasterRoster(){ showScreen('screen-settings'); }
+function backFromSubject(){
+  if(unsubStudents) unsubStudents();
+  if(state.subjectOpenedFrom === 'principal') showScreen('screen-principal');
+  else showScreen('screen-dashboard');
+}
+
+const SCREEN_BACK_HANDLERS = {
+  'screen-public-view': backFromPublicView,
+  'screen-settings': backFromSettings,
+  'screen-add-class': backFromAddClass,
+  'screen-catalog': backFromCatalog,
+  'screen-manage-hods': backFromManageHods,
+  'screen-master-roster': backFromMasterRoster,
+  'screen-subject': backFromSubject,
+};
+
+window.addEventListener('popstate', ()=>{
+  const activeEl = document.querySelector('.screen.active');
+  if(!activeEl) return;
+  const handler = SCREEN_BACK_HANDLERS[activeEl.id];
+  if(handler) handler();
+  // Screens with no handler here (login, dashboard, principal) are the app's
+  // root level — a back press from one of them just falls through to the
+  // browser/OS default (closing the tab or app), which is the expected
+  // mobile behavior.
+});
+
+function setBtnLoading(btn, loading, label){
+  if(loading){
+    btn.dataset.label = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span>';
+    btn.disabled = true;
+  } else {
+    btn.innerHTML = label || btn.dataset.label || 'Continue';
+    btn.disabled = false;
+  }
+}
+
+/* =====================================================================
+   PUBLIC ATTENDANCE VIEW — student self-lookup (no login)
+   Client-side rate limiting only: this deters casual repeated guessing
+   from the same browser, but it is NOT a real security boundary — anyone
+   can clear localStorage or use a different browser/incognito window to
+   reset it. It stops accidental/careless retries, not a determined
+   scripted attacker. See the chat notes for stronger options later
+   (Firestore App Check + a Cloud Function) if this ever needs to be solid.
+   --------------------------------------------------------------------- */
+const PV_RATE_KEY = 'attLookupAttempts';
+const PV_MAX_ATTEMPTS = 5;      // failed attempts allowed...
+const PV_WINDOW_MS = 10*60*1000; // ...within this rolling window...
+const PV_LOCK_MS = 5*60*1000;    // ...before locking out for this long
+
+function pvGetRateState(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(PV_RATE_KEY) || '{}');
+    return { count: raw.count||0, windowStart: raw.windowStart||0, lockedUntil: raw.lockedUntil||0 };
+  } catch(e){ return { count:0, windowStart:0, lockedUntil:0 }; }
+}
+function pvSetRateState(s){
+  try{ localStorage.setItem(PV_RATE_KEY, JSON.stringify(s)); } catch(e){}
+}
+function pvCheckLocked(){
+  const s = pvGetRateState();
+  const now = Date.now();
+  if(s.lockedUntil && now < s.lockedUntil){
+    return Math.ceil((s.lockedUntil - now)/60000); // minutes remaining
+  }
+  return 0;
+}
+function pvRecordFailure(){
+  const s = pvGetRateState();
+  const now = Date.now();
+  if(!s.windowStart || now - s.windowStart > PV_WINDOW_MS){
+    s.windowStart = now; s.count = 0;
+  }
+  s.count += 1;
+  if(s.count >= PV_MAX_ATTEMPTS){
+    s.lockedUntil = now + PV_LOCK_MS;
+    s.count = 0; s.windowStart = 0;
+  }
+  pvSetRateState(s);
+}
+function pvRecordSuccess(){
+  pvSetRateState({ count:0, windowStart:0, lockedUntil:0 });
+}
+
+function pvShowError(msg){
+  const el = document.getElementById('pv-error');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function pvClearError(){
+  const el = document.getElementById('pv-error');
+  el.textContent = '';
+  el.classList.remove('show');
+}
+
+document.getElementById('btn-open-public-view').addEventListener('click', ()=>{
+  document.getElementById('pv-roll').value = '';
+  document.getElementById('pv-phone5').value = '';
+  document.getElementById('pv-result').classList.add('hidden');
+  pvClearError();
+  goToScreen('screen-public-view');
+});
+document.getElementById('btn-back-public-view').addEventListener('click', ()=> history.back());
+
+document.getElementById('pv-phone5').addEventListener('input', (e)=>{
+  e.target.value = e.target.value.replace(/\D/g,'').slice(0,5);
+});
+
+document.getElementById('btn-pv-lookup').addEventListener('click', async ()=>{
+  pvClearError();
+  const lockedMins = pvCheckLocked();
+  if(lockedMins > 0){
+    pvShowError(`Too many attempts. Try again in ${lockedMins} minute${lockedMins===1?'':'s'}.`);
+    return;
+  }
+  const roll = document.getElementById('pv-roll').value.trim();
+  const phone5 = document.getElementById('pv-phone5').value.trim();
+  if(!roll || phone5.length !== 5){
+    pvShowError('Enter your Roll Number and all 5 digits.');
+    return;
+  }
+
+  const docId = `${sanitizeRollForId(roll)}_${phone5}`;
+
+  const btn = document.getElementById('btn-pv-lookup');
+  setBtnLoading(btn, true);
+  try{
+    const doc = await db.collection('publicView').doc(docId).get();
+    setBtnLoading(btn, false, 'View Attendance');
+    if(!doc.exists){
+      pvRecordFailure();
+      const s = pvGetRateState();
+      const remaining = s.lockedUntil ? 0 : Math.max(0, PV_MAX_ATTEMPTS - s.count);
+      const suffix = s.lockedUntil
+        ? ` Locked for ${Math.ceil(PV_LOCK_MS/60000)} minutes.`
+        : (remaining <= 2 ? ` (${remaining} attempt${remaining===1?'':'s'} left before a short lockout)` : '');
+      pvShowError('No match found. Double-check your Roll Number (case-sensitive) and phone digits, or ask your professor.' + suffix);
+      document.getElementById('pv-result').classList.add('hidden');
+      return;
+    }
+    pvRecordSuccess();
+    const d = doc.data();
+    document.getElementById('pv-initials').textContent = initialsOf(d.name);
+    document.getElementById('pv-name').textContent = d.name || '';
+    document.getElementById('pv-roll-display').textContent = d.rollNumber || '';
+    document.getElementById('pv-attended').textContent = d.lecturesAttended || 0;
+    document.getElementById('pv-total').textContent = d.totalLectures || 0;
+    document.getElementById('pv-pct').textContent = `${d.percentage || 0}%`;
+    const classLine = [d.className, d.courseName, d.departmentName].filter(Boolean).join(' · ');
+    document.getElementById('pv-class-line').textContent = classLine;
+    document.getElementById('pv-result').classList.remove('hidden');
+  } catch(err){
+    setBtnLoading(btn, false, 'View Attendance');
+    pvShowError('Something went wrong — check your connection and try again.');
+    console.error(err);
+  }
+});
+
+/* =====================================================================
+   AUTH FLOW
+   ===================================================================== */
+document.getElementById('btn-login').addEventListener('click', doLogin);
+document.getElementById('login-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+function doLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const errBox = document.getElementById('login-error');
+  errBox.classList.remove('show');
+
+  if(!email || !pass){
+    errBox.textContent = 'Please enter both email and password.';
+    errBox.classList.add('show');
+    return;
+  }
+  const btn = document.getElementById('btn-login');
+  setBtnLoading(btn, true);
+
+  auth.signInWithEmailAndPassword(email, pass)
+    .catch(err=>{
+      setBtnLoading(btn, false, 'Sign In');
+      errBox.textContent = friendlyAuthError(err);
+      errBox.classList.add('show');
+    });
+  // onAuthStateChanged handles the success path
+}
+
+function friendlyAuthError(err){
+  switch(err.code){
+    case 'auth/invalid-email': return 'That email address looks invalid.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential': return 'Incorrect email or password.';
+    case 'auth/too-many-requests': return 'Too many attempts. Please wait and try again.';
+    default: return 'Sign-in failed. Please try again.';
+  }
+}
+
+/* ---------- show / hide password ---------- */
+document.getElementById('btn-toggle-pass').addEventListener('click', ()=>{
+  const input = document.getElementById('login-pass');
+  const icon = document.getElementById('eye-icon');
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  document.getElementById('btn-toggle-pass').setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  icon.innerHTML = showing
+    ? '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/>'
+    : '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.6 10.6 0 0 1 12 4c7 0 11 7 11 7a21.6 21.6 0 0 1-2.61 3.65M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/>';
+});
+
+/* ---------- forgot password ---------- */
+document.getElementById('btn-forgot-pass').addEventListener('click', ()=>{
+  const errBox = document.getElementById('login-error');
+  errBox.classList.remove('show');
+  const email = document.getElementById('login-email').value.trim();
+  if(!email){
+    errBox.textContent = 'Enter your email above first, then tap "Forgot password?".';
+    errBox.classList.add('show');
+    return;
+  }
+  const btn = document.getElementById('btn-forgot-pass');
+  const original = btn.textContent;
+  btn.textContent = 'Sending…';
+  btn.disabled = true;
+  auth.sendPasswordResetEmail(email)
+    .then(()=>{ toast('Password reset link sent to ' + email); })
+    .catch(err=>{
+      let msg = 'Could not send reset email. Please try again.';
+      if(err.code === 'auth/invalid-email') msg = 'That email address looks invalid.';
+      if(err.code === 'auth/user-not-found') msg = 'No account found with that email.';
+      errBox.textContent = msg;
+      errBox.classList.add('show');
+    })
+    .finally(()=>{ btn.textContent = original; btn.disabled = false; });
+});
+
+auth.onAuthStateChanged(async (user)=>{
+  document.getElementById('boot-loader').style.display = 'none';
+  if(user){
+    state.user = user;
+    document.getElementById('settings-email').textContent = user.email;
+    const localPin = localStorage.getItem('vyt_pin_'+user.uid);
+    if(localPin){
+      // returning session -> show PIN unlock instead of dashboard directly
+      openPinUnlock();
+    } else {
+      openPinSetup();
+    }
+  } else {
+    state.user = null;
+    showScreen('screen-login');
+  }
+});
+
+/* =====================================================================
+   DARK MODE
+   ===================================================================== */
+function setTheme(mode){
+  const isDark = mode === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.getElementById('toggle-dark-mode').checked = isDark;
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', isDark ? '#20261F' : '#EEF0EE');
+  try{ localStorage.setItem('themePreference', isDark ? 'dark' : 'light'); } catch(e){}
+}
+document.getElementById('toggle-dark-mode').addEventListener('change', (e)=>{
+  setTheme(e.target.checked ? 'dark' : 'light');
+});
+// Reflect whatever the anti-flash script already applied, so the switch matches on load.
+setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+
+document.getElementById('btn-logout').addEventListener('click', ()=>{
+  auth.signOut().then(()=>{
+    showScreen('screen-login');
+    toast('Signed out');
+  });
+});
+
+/* =====================================================================
+   PIN PAD — shared builder
+   ===================================================================== */
+function buildPinPad(container, onDigit, onBackspace){
+  container.innerHTML = '';
+  const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+  keys.forEach(k=>{
+    const b = document.createElement('button');
+    if(k===''){ b.className = 'pin-key ghost'; b.disabled = true; }
+    else if(k==='⌫'){ b.className='pin-key ghost'; b.textContent='⌫'; b.addEventListener('click', onBackspace); }
+    else { b.className = 'pin-key'; b.textContent = k; b.addEventListener('click', ()=>onDigit(k)); }
+    container.appendChild(b);
+  });
+}
+
+function updateDots(dotsEl, len, errorState){
+  const dots = dotsEl.querySelectorAll('.pin-dot');
+  dots.forEach((d,i)=>{
+    d.classList.toggle('filled', i < len && !errorState);
+    d.classList.toggle('error', !!errorState);
+  });
+}
+
+/* ---------- PIN SETUP ---------- */
+let setupBuffer = '';
+let setupFirstPin = null;
+function openPinSetup(){
+  setupBuffer = ''; setupFirstPin = null;
+  document.getElementById('pin-setup-title').textContent = 'Create a PIN';
+  document.getElementById('pin-setup-sub').textContent = 'Set a 4-digit PIN for quick, secure access';
+  updateDots(document.getElementById('pin-setup-dots'), 0);
+  buildPinPad(document.getElementById('pin-setup-pad'), setupDigit, setupBackspace);
+  document.getElementById('pin-setup-overlay').classList.add('active');
+}
+function setupDigit(d){
+  if(setupBuffer.length >= 4) return;
+  setupBuffer += d;
+  updateDots(document.getElementById('pin-setup-dots'), setupBuffer.length);
+  if(setupBuffer.length === 4){
+    setTimeout(()=>{
+      if(setupFirstPin === null){
+        setupFirstPin = setupBuffer;
+        setupBuffer = '';
+        document.getElementById('pin-setup-title').textContent = 'Confirm PIN';
+        document.getElementById('pin-setup-sub').textContent = 'Enter the same 4 digits again';
+        updateDots(document.getElementById('pin-setup-dots'), 0);
+      } else {
+        if(setupBuffer === setupFirstPin){
+          const key = state.pinTarget === 'change' ? 'vyt_pin_'+state.user.uid : 'vyt_pin_'+state.user.uid;
+          localStorage.setItem(key, setupFirstPin);
+          document.getElementById('pin-setup-overlay').classList.remove('active');
+          toast('PIN saved');
+          if(state.pinTarget === 'change'){ showScreen('screen-settings'); }
+          else { enterApp(); }
+          state.pinTarget = 'unlock';
+        } else {
+          updateDots(document.getElementById('pin-setup-dots'), 4, true);
+          setTimeout(()=>{
+            setupFirstPin = null; setupBuffer = '';
+            document.getElementById('pin-setup-title').textContent = 'Create a PIN';
+            document.getElementById('pin-setup-sub').textContent = "PINs didn't match — try again";
+            updateDots(document.getElementById('pin-setup-dots'), 0);
+          }, 420);
+        }
+      }
+    }, 160);
+  }
+}
+function setupBackspace(){
+  setupBuffer = setupBuffer.slice(0,-1);
+  updateDots(document.getElementById('pin-setup-dots'), setupBuffer.length);
+}
+
+/* ---------- PIN UNLOCK ---------- */
+let unlockBuffer = '';
+function openPinUnlock(){
+  unlockBuffer = '';
+  document.getElementById('pin-unlock-name').textContent = state.user ? `Signed in as ${state.user.email}` : 'Enter your PIN to continue';
+  updateDots(document.getElementById('pin-unlock-dots'), 0);
+  buildPinPad(document.getElementById('pin-unlock-pad'), unlockDigit, unlockBackspace);
+  document.getElementById('pin-overlay').classList.add('active');
+}
+function unlockDigit(d){
+  if(unlockBuffer.length >= 4) return;
+  unlockBuffer += d;
+  updateDots(document.getElementById('pin-unlock-dots'), unlockBuffer.length);
+  if(unlockBuffer.length === 4){
+    const saved = localStorage.getItem('vyt_pin_'+state.user.uid);
+    setTimeout(()=>{
+      if(unlockBuffer === saved){
+        document.getElementById('pin-overlay').classList.remove('active');
+        enterApp();
+      } else {
+        updateDots(document.getElementById('pin-unlock-dots'), 4, true);
+        setTimeout(()=>{ unlockBuffer=''; updateDots(document.getElementById('pin-unlock-dots'), 0); }, 420);
+      }
+    }, 120);
+  }
+}
+function unlockBackspace(){
+  unlockBuffer = unlockBuffer.slice(0,-1);
+  updateDots(document.getElementById('pin-unlock-dots'), unlockBuffer.length);
+}
+document.getElementById('btn-pin-forgot').addEventListener('click', ()=>{
+  document.getElementById('pin-overlay').classList.remove('active');
+  auth.signOut().then(()=> showScreen('screen-login'));
+});
+document.getElementById('btn-change-pin').addEventListener('click', ()=>{
+  state.pinTarget = 'change';
+  openPinSetup();
+});
+
+/* =====================================================================
+   ENTER APP -> ROUTE TO THE RIGHT DASHBOARD BASED ON ROLE
+   ===================================================================== */
+function enterApp(){
+  document.getElementById('settings-email').textContent = state.user.email;
+  // Check the admins collection to see if this account is a principal, and the
+  // hods collection to see if this account has been promoted to HoD of a
+  // department. Reading one's own admins/{uid} or hods/{uid} doc is always
+  // permitted by the rules below, even for a plain professor, so neither
+  // check ever fails with a permission error.
+  const adminCheck = db.collection('admins').doc(state.user.uid).get()
+    .then(doc=>{ state.role = doc.exists ? 'principal' : 'professor'; })
+    .catch(()=>{ state.role = 'professor'; });
+
+  const hodCheck = db.collection('hods').doc(state.user.uid).get()
+    .then(doc=>{ state.hodDept = doc.exists ? { id: doc.data().departmentId, name: doc.data().departmentName } : null; })
+    .catch(()=>{ state.hodDept = null; });
+
+  Promise.all([adminCheck, hodCheck]).then(()=>{
+    loadCatalog();
+    goHome();
+  });
+}
+
+function goHome(){
+  document.getElementById('btn-edit-name').classList.toggle('hidden', state.role === 'principal');
+  document.getElementById('settings-admin-label').classList.toggle('hidden', state.role !== 'principal');
+  document.getElementById('settings-admin-block').classList.toggle('hidden', state.role !== 'principal');
+  document.getElementById('settings-hod-label').classList.toggle('hidden', !state.hodDept);
+  document.getElementById('settings-hod-block').classList.toggle('hidden', !state.hodDept);
+  if(state.hodDept){
+    document.getElementById('btn-open-master-roster').textContent = `Upload Master Roster — ${state.hodDept.name}`;
+  }
+  if(state.role === 'principal'){
+    document.getElementById('principal-date').textContent = new Date().toLocaleDateString('en-IN', {weekday:'long', day:'numeric', month:'long'});
+    showScreen('screen-principal');
+    loadPrincipalData();
+    loadHods();
+  } else {
+    document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-IN', {weekday:'long', day:'numeric', month:'long'});
+    showScreen('screen-dashboard');
+    loadSubjects();
+    loadProfessorName();
+  }
+}
+
+function titleCase(s){ return s.replace(/\w\S*/g, t=> t.charAt(0).toUpperCase()+t.slice(1)); }
+
+function defaultNameGuess(){
+  return titleCase(state.user.email.split('@')[0].replace(/[._]/g,' '));
+}
+
+function applyDisplayName(name){
+  document.getElementById('dash-name').textContent = `Prof. ${name}`;
+  document.getElementById('settings-name').textContent = name;
+}
+
+function loadProfessorName(){
+  // Show a sensible default immediately, then refine once Firestore responds
+  applyDisplayName(defaultNameGuess());
+  db.collection('professors').doc(state.user.uid).get().then(doc=>{
+    if(doc.exists && doc.data().displayName){
+      state.displayName = doc.data().displayName;
+      applyDisplayName(state.displayName);
+    }
+  }).catch(()=>{ /* non-critical — keep the default guess */ });
+}
+
+document.getElementById('btn-edit-name').addEventListener('click', ()=>{
+  const current = document.getElementById('settings-name').textContent;
+  const next = prompt('Enter your display name (shown as "Prof. Name"):', current === '—' ? '' : current);
+  if(next === null) return; // cancelled
+  const trimmed = next.trim();
+  if(!trimmed){ toast('Name cannot be empty'); return; }
+  db.collection('professors').doc(state.user.uid).set({ displayName: trimmed }, {merge:true})
+    .then(()=>{
+      state.displayName = trimmed;
+      applyDisplayName(trimmed);
+      toast('Name updated');
+    })
+    .catch(()=> toast('Could not save name — try again'));
+});
+
+document.getElementById('btn-avatar').addEventListener('click', ()=> goToScreen('screen-settings'));
+document.getElementById('btn-principal-avatar').addEventListener('click', ()=> goToScreen('screen-settings'));
+document.getElementById('btn-back-settings').addEventListener('click', ()=> history.back());
+
+/* =====================================================================
+   PRINCIPAL DASHBOARD — read-only view across every professor's classes
+   ===================================================================== */
+function loadPrincipalData(){
+  const loadingEl = document.getElementById('principal-loading');
+  loadingEl.classList.remove('hidden');
+  state.uniqueStudentKeys = new Set();
+
+  db.collection('classes').get().then(snap=>{
+    state.allClasses = [];
+    snap.forEach(doc=> state.allClasses.push({id:doc.id, ...doc.data()}));
+
+    // For each class, pull its students to compute headcount + average attendance
+    return Promise.all(state.allClasses.map(cls=>
+      db.collection('classes').doc(cls.id).collection('students').get().then(stuSnap=>{
+        cls.studentCount = stuSnap.size;
+        let pctSum = 0, counted = 0;
+        stuSnap.forEach(s=>{
+          const d = s.data();
+          // Same physical student may be enrolled in several subjects/classes —
+          // count them once institution-wide, keyed by roll number (falls back to name if missing)
+          const key = (d.rollNumber || d.name || s.id).toString().trim().toLowerCase();
+          state.uniqueStudentKeys.add(key);
+          if(cls.totalLectures > 0){
+            pctSum += (d.lecturesAttended||0) / cls.totalLectures;
+            counted++;
+          }
+        });
+        cls.avgAttendance = counted > 0 ? Math.round((pctSum/counted)*100) : 0;
+      }).catch(()=>{ cls.studentCount = 0; cls.avgAttendance = 0; })
+    ));
+  }).then(()=>{
+    // Every *registered* professor account, not just ones who already have a
+    // class — so idle faculty still show up under the Professors tab.
+    const classProfIds = new Set(state.allClasses.map(c=>c.professorId).filter(Boolean));
+    return db.collection('professors').get().then(snap=>{
+      snap.forEach(doc=>{
+        classProfIds.add(doc.id);
+        state.professorNames[doc.id] = doc.data().displayName || null;
+      });
+      state.allProfessorIds = [...classProfIds];
+    }).catch(()=>{ state.allProfessorIds = [...classProfIds]; });
+  }).then(()=>{
+    loadingEl.classList.add('hidden');
+    renderPrincipalTabs();
+  }).catch(err=>{
+    loadingEl.classList.add('hidden');
+    toast('Could not load principal data');
+    console.error(err);
+  });
+}
+
+function professorLabel(uid){
+  if(!uid) return 'Unknown professor';
+  const name = state.professorNames[uid];
+  return name ? `Prof. ${name}` : `Professor (${uid.slice(0,6)}…)`;
+}
+
+/* =====================================================================
+   PRINCIPAL DASHBOARD — TAB SWITCHING (Classes / Professors)
+   ===================================================================== */
+document.querySelectorAll('.ptab-active-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> switchPrincipalTab(btn.dataset.ptab));
+});
+function switchPrincipalTab(tab){
+  state.principalTab = tab;
+  document.querySelectorAll('.ptab-active-btn').forEach(b=> b.classList.toggle('active', b.dataset.ptab===tab));
+  document.querySelectorAll('.ptabpanel').forEach(p=> p.classList.remove('active'));
+  document.getElementById('ptab-'+tab).classList.add('active');
+  renderPrincipalTabs();
+}
+
+function renderPrincipalTabs(){
+  renderPrincipalStats();
+  if(state.principalTab === 'professors') renderPrincipalProfessors();
+  else renderPrincipalClasses();
+}
+
+function renderPrincipalStats(){
+  const profCount = (state.allProfessorIds && state.allProfessorIds.length)
+    || new Set(state.allClasses.map(c=>c.professorId).filter(Boolean)).size;
+  const classCount = state.allClasses.length;
+  const studentTotal = state.uniqueStudentKeys ? state.uniqueStudentKeys.size : 0;
+  const withAttendance = state.allClasses.filter(c=>c.totalLectures>0);
+  const avgAttendance = withAttendance.length
+    ? Math.round(withAttendance.reduce((s,c)=> s + c.avgAttendance, 0) / withAttendance.length)
+    : 0;
+
+  document.getElementById('p-stat-profs').textContent = profCount;
+  document.getElementById('p-stat-classes').textContent = classCount;
+  document.getElementById('p-stat-students').textContent = studentTotal;
+  document.getElementById('p-stat-avg').textContent = avgAttendance + '%';
+}
+
+/* =====================================================================
+   CLASSES TAB — grouped Department -> Course -> Class, searchable
+   ===================================================================== */
+document.getElementById('principal-class-search').addEventListener('input', e=>{
+  state.principalClassQuery = e.target.value;
+  renderPrincipalClasses();
+});
+document.getElementById('btn-clear-principal-scope').addEventListener('click', ()=>{
+  state.principalScopeProfId = null;
+  renderPrincipalClasses();
+});
+
+function renderPrincipalClasses(){
+  const treeEl = document.getElementById('principal-class-tree');
+  const empty = document.getElementById('principal-empty');
+  const banner = document.getElementById('principal-scope-banner');
+  treeEl.innerHTML = '';
+
+  if(state.allClasses.length === 0){
+    banner.classList.add('hidden');
+    empty.classList.remove('hidden');
+    document.querySelector('#principal-empty h3').textContent = 'No classes yet';
+    document.querySelector('#principal-empty p').textContent = 'Classes will appear here once professors start adding subjects.';
+    return;
+  }
+
+  if(state.principalScopeProfId){
+    banner.classList.remove('hidden');
+    document.getElementById('principal-scope-label').textContent =
+      'Showing classes for ' + professorLabel(state.principalScopeProfId);
+  } else {
+    banner.classList.add('hidden');
+  }
+
+  const q = (state.principalClassQuery||'').trim().toLowerCase();
+  const filtered = state.allClasses.filter(c=>{
+    if(state.principalScopeProfId && c.professorId !== state.principalScopeProfId) return false;
+    if(!q) return true;
+    const haystack = [c.className, c.departmentName, c.courseName, professorLabel(c.professorId)]
+      .filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
+
+  if(filtered.length === 0){
+    empty.classList.remove('hidden');
+    document.querySelector('#principal-empty h3').textContent = 'No matches';
+    document.querySelector('#principal-empty p').textContent = 'Try a different department, course, class, or professor name.';
+    return;
+  }
+  empty.classList.add('hidden');
+
+  // Group: department -> course -> [classes]
+  const tree = new Map();
+  filtered.forEach(c=>{
+    const deptKey = c.departmentName || 'Unassigned';
+    const courseKey = c.courseId ? (c.courseName || 'Untitled course') : 'Unassigned course';
+    if(!tree.has(deptKey)) tree.set(deptKey, new Map());
+    const courseMap = tree.get(deptKey);
+    if(!courseMap.has(courseKey)) courseMap.set(courseKey, []);
+    courseMap.get(courseKey).push(c);
+  });
+
+  const deptNames = [...tree.keys()].sort((a,b)=>{
+    if(a==='Unassigned') return 1; if(b==='Unassigned') return -1;
+    return a.localeCompare(b);
+  });
+
+  deptNames.forEach(deptName=>{
+    const courseMap = tree.get(deptName);
+    let deptClassCount = 0; courseMap.forEach(list=> deptClassCount += list.length);
+    const deptCollapsed = state.collapsedDepts.has(deptName);
+
+    const deptEl = document.createElement('div');
+    deptEl.className = 'dept-group' + (deptCollapsed ? ' collapsed' : '');
+    const head = document.createElement('div');
+    head.className = 'dept-group-head';
+    head.innerHTML = `<div class="meta"><span>${escapeHtml(deptName)}</span><span class="count">${deptClassCount} class${deptClassCount===1?'':'es'}</span></div><span class="chev">▾</span>`;
+    head.addEventListener('click', ()=>{
+      if(state.collapsedDepts.has(deptName)) state.collapsedDepts.delete(deptName);
+      else state.collapsedDepts.add(deptName);
+      renderPrincipalClasses();
+    });
+    deptEl.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'dept-group-body';
+
+    const courseNames = [...courseMap.keys()].sort((a,b)=>{
+      if(a==='Unassigned course') return 1; if(b==='Unassigned course') return -1;
+      return a.localeCompare(b);
+    });
+
+    courseNames.forEach(courseName=>{
+      const classes = courseMap.get(courseName).sort((a,b)=> (a.className||'').localeCompare(b.className||''));
+      const courseKey = deptName + '::' + courseName;
+      const courseCollapsed = state.collapsedCourses.has(courseKey);
+
+      const courseEl = document.createElement('div');
+      courseEl.className = 'course-group' + (courseCollapsed ? ' collapsed' : '');
+      const cHead = document.createElement('div');
+      cHead.className = 'course-group-head';
+      cHead.innerHTML = `<span>${escapeHtml(courseName)} · ${classes.length}</span><span class="chev">▾</span>`;
+      cHead.addEventListener('click', ()=>{
+        if(state.collapsedCourses.has(courseKey)) state.collapsedCourses.delete(courseKey);
+        else state.collapsedCourses.add(courseKey);
+        renderPrincipalClasses();
+      });
+      courseEl.appendChild(cHead);
+
+      const cBody = document.createElement('div');
+      cBody.className = 'course-group-body';
+      classes.forEach(c=>{
+        const initials = (c.className||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+        const card = document.createElement('div');
+        card.className = 'subject-card';
+        card.innerHTML = `
+          <div class="subject-glyph">${initials}</div>
+          <div class="subject-info">
+            <h3>${escapeHtml(c.className)}</h3>
+            <p>${escapeHtml(professorLabel(c.professorId))} · ${c.studentCount||0} students · ${c.avgAttendance||0}% avg.</p>
+          </div>
+          <div class="subject-arrow">›</div>`;
+        card.addEventListener('click', ()=> openSubject(c.id, true));
+        cBody.appendChild(card);
+      });
+      courseEl.appendChild(cBody);
+      body.appendChild(courseEl);
+    });
+
+    deptEl.appendChild(body);
+    treeEl.appendChild(deptEl);
+  });
+}
+
+/* =====================================================================
+   PROFESSORS TAB — every registered account, with a rollup of their work
+   ===================================================================== */
+document.getElementById('principal-prof-search').addEventListener('input', e=>{
+  state.principalProfQuery = e.target.value;
+  renderPrincipalProfessors();
+});
+
+function renderPrincipalProfessors(){
+  const list = document.getElementById('principal-prof-list');
+  const empty = document.getElementById('principal-prof-empty');
+  list.innerHTML = '';
+
+  const ids = state.allProfessorIds || [];
+  if(ids.length === 0){
+    empty.classList.remove('hidden');
+    document.querySelector('#principal-prof-empty h3').textContent = 'No professors yet';
+    document.querySelector('#principal-prof-empty p').textContent = 'Registered faculty accounts will appear here.';
+    return;
+  }
+
+  // Roll up each professor's own classes into class/student/attendance counts
+  const stats = {};
+  ids.forEach(uid=> stats[uid] = { classCount:0, studentCount:0, attSum:0, attCounted:0 });
+  state.allClasses.forEach(c=>{
+    if(!c.professorId || !stats[c.professorId]) return;
+    const s = stats[c.professorId];
+    s.classCount++;
+    s.studentCount += (c.studentCount||0);
+    if(c.totalLectures>0){ s.attSum += (c.avgAttendance||0); s.attCounted++; }
+  });
+
+  const q = (state.principalProfQuery||'').trim().toLowerCase();
+  const rows = ids
+    .map(uid=>({ uid, label: professorLabel(uid), ...stats[uid] }))
+    .filter(r=> !q || r.label.toLowerCase().includes(q))
+    .sort((a,b)=> a.label.localeCompare(b.label));
+
+  if(rows.length === 0){
+    empty.classList.remove('hidden');
+    document.querySelector('#principal-prof-empty h3').textContent = 'No matches';
+    document.querySelector('#principal-prof-empty p').textContent = 'Try a different name.';
+    return;
+  }
+  empty.classList.add('hidden');
+
+  rows.forEach(r=>{
+    const initials = r.label.replace(/^Prof\.\s*/,'').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    const avg = r.attCounted ? Math.round(r.attSum / r.attCounted) : 0;
+    const card = document.createElement('div');
+    card.className = 'prof-card';
+    card.innerHTML = `
+      <div class="subject-glyph">${escapeHtml(initials||'P')}</div>
+      <div class="subject-info">
+        <h3>${escapeHtml(r.label)}</h3>
+        <p>${r.classCount} class${r.classCount===1?'':'es'} · ${r.studentCount} students · ${avg}% avg. attendance</p>
+      </div>
+      <div class="subject-arrow">›</div>`;
+    card.addEventListener('click', ()=>{
+      state.principalScopeProfId = r.uid;
+      state.principalClassQuery = '';
+      document.getElementById('principal-class-search').value = '';
+      switchPrincipalTab('classes');
+    });
+    list.appendChild(card);
+  });
+}
+
+/* =====================================================================
+   FIRESTORE — DEPARTMENTS & COURSES (catalog)
+   ===================================================================== */
+function loadCatalog(){
+  db.collection('departments').orderBy('name').onSnapshot(snap=>{
+    state.departments = [];
+    snap.forEach(doc=> state.departments.push({id:doc.id, ...doc.data()}));
+    renderDeptDropdown();
+    if(state.role==='principal') renderCatalogManager();
+  }, err=>console.error('departments load failed', err));
+
+  db.collection('courses').orderBy('name').onSnapshot(snap=>{
+    state.courses = [];
+    snap.forEach(doc=> state.courses.push({id:doc.id, ...doc.data()}));
+    renderCourseDropdown();
+    if(state.role==='principal') renderCatalogManager();
+  }, err=>console.error('courses load failed', err));
+}
+
+function renderDeptDropdown(){
+  const sel = document.getElementById('ac-department');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Select department…</option>' +
+    state.departments.map(d=>`<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
+  if(current) sel.value = current;
+}
+
+function renderCourseDropdown(){
+  const sel = document.getElementById('ac-course');
+  const deptId = document.getElementById('ac-department').value;
+  if(!deptId){
+    sel.innerHTML = '<option value="">Select department first…</option>';
+    sel.disabled = true;
+    return;
+  }
+  const list = state.courses.filter(c=>c.departmentId===deptId);
+  sel.disabled = false;
+  const current = sel.value;
+  sel.innerHTML = (list.length ? '<option value="">Select course…</option>' : '<option value="">No courses yet — ask principal to add one</option>') +
+    list.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  if(current) sel.value = current;
+}
+
+document.getElementById('ac-department').addEventListener('change', ()=>{
+  renderCourseDropdown();
+  document.getElementById('ac-existing-wrap').classList.add('hidden');
+  document.getElementById('ac-existing-chips').innerHTML='';
+});
+
+document.getElementById('ac-course').addEventListener('change', async ()=>{
+  const deptId = document.getElementById('ac-department').value;
+  const courseId = document.getElementById('ac-course').value;
+  const wrap = document.getElementById('ac-existing-wrap');
+  const chipsEl = document.getElementById('ac-existing-chips');
+  if(!courseId){ wrap.classList.add('hidden'); chipsEl.innerHTML=''; return; }
+  try{
+    const [classSnap, rosterSnap] = await Promise.all([
+      db.collection('classes').where('courseId','==',courseId).get(),
+      deptId ? db.collection('masterRosters').where('departmentId','==',deptId).where('courseId','==',courseId).get() : Promise.resolve(null)
+    ]);
+    const names = new Set(classSnap.docs.map(d=>d.data().className).filter(Boolean));
+    if(rosterSnap){
+      rosterSnap.forEach(doc=>{
+        const d = doc.data();
+        if(d.sectionName) names.add(d.sectionName);
+      });
+    }
+    const list = [...names];
+    if(list.length===0){ wrap.classList.add('hidden'); chipsEl.innerHTML=''; return; }
+    wrap.classList.remove('hidden');
+    chipsEl.innerHTML = list.map(n=>`<button type="button" class="chip" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join('');
+    chipsEl.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        document.getElementById('ac-section').value = chip.dataset.name;
+        chipsEl.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
+        chip.classList.add('selected');
+      });
+    });
+  } catch(err){ console.error('existing classes/roster lookup failed', err); }
+});
+
+/* ---- Add / Assign Class screen ---- */
+function openAddClass(mode, targetClassId, prefill){
+  state.acMode = mode || 'create';
+  state.acTargetClassId = targetClassId || null;
+  document.getElementById('add-class-title').textContent = state.acMode==='assign' ? 'Assign Department & Course' : 'Add Class';
+  document.getElementById('btn-ac-save').textContent = state.acMode==='assign' ? 'Save' : 'Save Class';
+  document.getElementById('ac-department').value = (prefill && prefill.departmentId) || '';
+  document.getElementById('ac-section').value = (prefill && prefill.className) || '';
+  document.getElementById('ac-existing-wrap').classList.add('hidden');
+  renderCourseDropdown();
+  if(prefill && prefill.courseId){ document.getElementById('ac-course').value = prefill.courseId; }
+  const hint = document.getElementById('ac-empty-catalog-hint');
+  hint.textContent = state.departments.length===0
+    ? 'No departments have been added yet. Ask your principal to add one from Settings → Departments & Courses.'
+    : '';
+  goToScreen('screen-add-class');
+}
+
+document.getElementById('btn-back-add-class').addEventListener('click', ()=> history.back());
+
+document.getElementById('btn-ac-save').addEventListener('click', ()=>{
+  const deptId = document.getElementById('ac-department').value;
+  const courseId = document.getElementById('ac-course').value;
+  const section = document.getElementById('ac-section').value.trim();
+  if(!deptId || !courseId){ toast('Select a department and course'); return; }
+  if(!section){ toast('Enter a section / class name'); return; }
+  const dept = state.departments.find(d=>d.id===deptId);
+  const course = state.courses.find(c=>c.id===courseId);
+  const btn = document.getElementById('btn-ac-save');
+  setBtnLoading(btn, true);
+
+  if(state.acMode==='assign' && state.acTargetClassId){
+    db.collection('classes').doc(state.acTargetClassId).update({
+      className: section, departmentId: deptId, departmentName: dept?dept.name:'',
+      courseId: courseId, courseName: course?course.name:''
+    }).then(()=>{
+      setBtnLoading(btn,false,'Save');
+      toast('Class updated');
+      history.back();
+    }).catch(()=>{ setBtnLoading(btn,false,'Save'); toast('Failed to update class'); });
+    return;
+  }
+
+  db.collection('classes').add({
+    className: section, professorId: state.user.uid, totalLectures: 0,
+    departmentId: deptId, departmentName: dept?dept.name:'', courseId: courseId, courseName: course?course.name:''
+  }).then(()=>{
+    setBtnLoading(btn,false,'Save Class');
+    toast('Class added');
+    history.back();
+  }).catch(()=>{ setBtnLoading(btn,false,'Save Class'); toast('Failed to add class'); });
+});
+
+/* ---- Catalog manager (principal only UI) ---- */
+function renderCatalogManager(){
+  const wrap = document.getElementById('catalog-list');
+  const empty = document.getElementById('catalog-empty');
+  if(state.departments.length===0){ wrap.innerHTML=''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  wrap.innerHTML = state.departments.map(d=>{
+    const courses = state.courses.filter(c=>c.departmentId===d.id);
+    return `
+      <div class="dept-block" data-dept="${d.id}">
+        <div class="dept-block-head">
+          <h3>${escapeHtml(d.name)}</h3>
+          <button class="catalog-del" data-type="dept" data-id="${d.id}" aria-label="Delete department">×</button>
+        </div>
+        <div class="inline-add">
+          <input type="text" class="new-course-input" data-dept="${d.id}" placeholder="e.g. B.Sc III Sem" />
+          <button class="btn btn-primary btn-sm add-course-btn" data-dept="${d.id}">Add</button>
+        </div>
+        ${courses.map(c=>`
+          <div class="catalog-row">
+            <div class="name">${escapeHtml(c.name)}</div>
+            <button class="catalog-del" data-type="course" data-id="${c.id}" aria-label="Delete course">×</button>
+          </div>`).join('') || '<p class="hint-text" style="margin-bottom:14px;">No courses yet in this department.</p>'}
+      </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('.add-course-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const deptId = btn.dataset.dept;
+      const input = wrap.querySelector(`.new-course-input[data-dept="${deptId}"]`);
+      const name = input.value.trim();
+      if(!name){ toast('Enter a course name'); return; }
+      db.collection('courses').add({name, departmentId: deptId})
+        .then(()=>{ input.value=''; toast('Course added'); })
+        .catch(()=> toast('Failed to add course'));
+    });
+  });
+  wrap.querySelectorAll('.catalog-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const type = btn.dataset.type, id = btn.dataset.id;
+      if(type==='dept'){
+        const hasCourses = state.courses.some(c=>c.departmentId===id);
+        if(hasCourses){ toast('Delete all courses in this department first'); return; }
+        if(!confirm('Delete this department?')) return;
+        db.collection('departments').doc(id).delete()
+          .then(()=> toast('Department deleted')).catch(()=> toast('Failed to delete'));
+      } else {
+        if(!confirm('Delete this course?')) return;
+        db.collection('courses').doc(id).delete()
+          .then(()=> toast('Course deleted')).catch(()=> toast('Failed to delete'));
+      }
+    });
+  });
+}
+
+document.getElementById('btn-add-dept').addEventListener('click', ()=>{
+  const input = document.getElementById('new-dept-name');
+  const name = input.value.trim();
+  if(!name){ toast('Enter a department name'); return; }
+  db.collection('departments').add({name})
+    .then(()=>{ input.value=''; toast('Department added'); })
+    .catch(()=> toast('Failed to add department'));
+});
+
+document.getElementById('btn-toggle-bulk').addEventListener('click', ()=>{
+  document.getElementById('bulk-import-wrap').classList.toggle('hidden');
+});
+
+function parseCatalogBulkText(text){
+  const lines = text.split('\n');
+  const blocks = [];
+  let current = null;
+  lines.forEach(raw=>{
+    const line = raw.trim();
+    if(!line) return;
+    if(line.startsWith('-') || line.startsWith('*') || line.startsWith('•')){
+      const courseName = line.replace(/^[-*•]\s*/, '').trim();
+      if(courseName && current) current.courses.push(courseName);
+    } else {
+      current = { deptName: line, courses: [] };
+      blocks.push(current);
+    }
+  });
+  return blocks;
+}
+
+document.getElementById('btn-bulk-import').addEventListener('click', async ()=>{
+  const textEl = document.getElementById('bulk-catalog-text');
+  const parsed = parseCatalogBulkText(textEl.value);
+  if(parsed.length===0){ toast('Paste a department & course list first'); return; }
+
+  const btn = document.getElementById('btn-bulk-import');
+  setBtnLoading(btn, true);
+
+  try{
+    const batch = db.batch();
+    const deptIdByName = new Map(state.departments.map(d=>[d.name.toLowerCase(), d.id]));
+    let deptCount = 0, courseCount = 0;
+
+    parsed.forEach(block=>{
+      let deptId = deptIdByName.get(block.deptName.toLowerCase());
+      if(!deptId){
+        const ref = db.collection('departments').doc();
+        batch.set(ref, { name: block.deptName });
+        deptId = ref.id;
+        deptIdByName.set(block.deptName.toLowerCase(), deptId);
+        deptCount++;
+      }
+      const existingCourseNames = new Set(
+        state.courses.filter(c=>c.departmentId===deptId).map(c=>c.name.toLowerCase())
+      );
+      block.courses.forEach(courseName=>{
+        if(existingCourseNames.has(courseName.toLowerCase())) return;
+        const cref = db.collection('courses').doc();
+        batch.set(cref, { name: courseName, departmentId: deptId });
+        existingCourseNames.add(courseName.toLowerCase());
+        courseCount++;
+      });
+    });
+
+    await batch.commit();
+    setBtnLoading(btn, false, 'Import');
+    toast(`Added ${deptCount} department(s), ${courseCount} course(s)`);
+    textEl.value = '';
+    document.getElementById('bulk-import-wrap').classList.add('hidden');
+  } catch(err){
+    setBtnLoading(btn, false, 'Import');
+    toast('Bulk import failed — check console');
+    console.error(err);
+  }
+});
+
+document.getElementById('btn-open-catalog').addEventListener('click', ()=> goToScreen('screen-catalog'));
+document.getElementById('btn-back-catalog').addEventListener('click', ()=> history.back());
+
+/* =====================================================================
+   SECTION INCHARGE MANAGEMENT (principal only)
+   ===================================================================== */
+function loadHods(){
+  db.collection('hods').onSnapshot(snap=>{
+    state.hods = [];
+    snap.forEach(doc=> state.hods.push({ uid: doc.id, ...doc.data() }));
+    renderManageHods();
+  }, err=>console.error('hods load failed', err));
+
+  // Build the professor picker: union of (a) anyone who has ever set a display
+  // name, and (b) anyone who has created at least one class — covers every
+  // professor we could plausibly know about from the client.
+  db.collection('professors').get().then(snap=>{
+    const byUid = new Map();
+    snap.forEach(doc=>{
+      const name = doc.data().displayName;
+      byUid.set(doc.id, name || `Professor (${doc.id.slice(0,6)}…)`);
+    });
+    state.allClasses.forEach(c=>{
+      if(c.professorId && !byUid.has(c.professorId)){
+        byUid.set(c.professorId, `Professor (${c.professorId.slice(0,6)}…)`);
+      }
+    });
+    state.professorDirectory = [...byUid.entries()].map(([uid,label])=>({uid,label}))
+      .sort((a,b)=> a.label.localeCompare(b.label));
+    renderManageHods();
+  }).catch(err=>console.error('professor directory load failed', err));
+}
+
+function renderManageHods(){
+  const wrap = document.getElementById('manage-hods-list');
+  const empty = document.getElementById('manage-hods-empty');
+  if(!wrap) return;
+  if(state.departments.length===0){ wrap.innerHTML=''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  wrap.innerHTML = state.departments.map(d=>{
+    const current = state.hods.find(h=>h.departmentId===d.id);
+    const options = ['<option value="">— None —</option>']
+      .concat(state.professorDirectory.map(p=>
+        `<option value="${p.uid}" ${current && current.uid===p.uid ? 'selected':''}>${escapeHtml(p.label)}</option>`
+      )).join('');
+    return `
+      <div class="catalog-row" style="flex-direction:column; align-items:stretch; gap:10px;">
+        <div>
+          <div class="name">${escapeHtml(d.name)}</div>
+          <div class="sub">${current ? 'Section Incharge: '+escapeHtml(current.label||'') : 'No Section Incharge assigned'}</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <select class="hod-select" data-dept="${d.id}" data-dept-name="${escapeHtml(d.name)}" style="flex:1; border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 12px; background:var(--surface); font-size:13.5px;">
+            ${options}
+          </select>
+          <button class="btn btn-primary btn-sm hod-save-btn" data-dept="${d.id}">Save</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('.hod-save-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const deptId = btn.dataset.dept;
+      const select = wrap.querySelector(`.hod-select[data-dept="${deptId}"]`);
+      const deptName = select.dataset.deptName;
+      const newUid = select.value;
+      const existing = state.hods.find(h=>h.departmentId===deptId);
+
+      setBtnLoading(btn, true);
+      try{
+        // If someone else currently holds this department, remove their assignment first
+        if(existing && existing.uid !== newUid){
+          await db.collection('hods').doc(existing.uid).delete();
+        }
+        if(newUid){
+          const label = state.professorDirectory.find(p=>p.uid===newUid)?.label || '';
+          await db.collection('hods').doc(newUid).set({ departmentId: deptId, departmentName: deptName, label });
+        }
+        setBtnLoading(btn, false, 'Save');
+        toast(newUid ? 'Section Incharge assigned' : 'Section Incharge removed');
+      } catch(err){
+        setBtnLoading(btn, false, 'Save');
+        toast('Failed to update — check permissions');
+        console.error(err);
+      }
+    });
+  });
+}
+
+document.getElementById('btn-open-manage-hods').addEventListener('click', ()=> goToScreen('screen-manage-hods'));
+document.getElementById('btn-back-manage-hods').addEventListener('click', ()=> history.back());
+
+/* =====================================================================
+   MASTER ROSTER UPLOAD (Section Incharge only)
+   ===================================================================== */
+/* A "section" (e.g. M1M2, M3M4, B6) is its own roster — every class only
+   ever fetches the one section it belongs to, never the whole course. */
+function normalizeSection(s){
+  return String(s||'').trim().toUpperCase().replace(/\s+/g,'');
+}
+function legacyRosterKey(deptId, courseId){
+  return `${deptId}_${courseId}`;
+}
+function sectionRosterKey(deptId, courseId, section){
+  return `${deptId}_${courseId}_${normalizeSection(section)}`;
+}
+
+function openMasterRoster(){
+  if(!state.hodDept){ toast('You are not assigned as a Section Incharge'); return; }
+  const sel = document.getElementById('mr-course');
+  const list = state.courses.filter(c=>c.departmentId===state.hodDept.id);
+  sel.innerHTML = (list.length ? '<option value="">Select course…</option>' : '<option value="">No courses yet under this department</option>')
+    + list.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  document.getElementById('mr-roster-text').value = '';
+  document.getElementById('mr-manual-section').value = '';
+  document.getElementById('mr-existing-info').textContent = '';
+  document.getElementById('mr-file-input').value = '';
+  document.getElementById('mr-combo-filter').value = '';
+  document.getElementById('mr-preview-info').textContent = '';
+  document.getElementById('mr-manual-wrap').classList.add('hidden');
+  document.getElementById('mr-current-list-wrap').classList.add('hidden');
+  document.getElementById('mr-section-checks-wrap').classList.add('hidden');
+  document.getElementById('mr-section-view-wrap').classList.add('hidden');
+  document.getElementById('btn-split-legacy').classList.add('hidden');
+  document.getElementById('btn-delete-section-roster').classList.add('hidden');
+  document.getElementById('btn-delete-course-rosters').classList.add('hidden');
+  state.mrRawFileStudents = null; // full parsed file, before combination filtering
+  state.mrSectionGroups = null;   // {sectionLabel: [students]} built from the current file
+  state.mrCurrentRosterKey = null;
+  state.mrCurrentRosterStudents = [];
+  state.mrLegacyKey = null;       // set when the currently-viewed section is only in the old combined doc
+  state.mrSectionOptions = [];    // [{value, label, isLegacy}]
+  goToScreen('screen-master-roster');
+}
+
+document.getElementById('btn-open-master-roster').addEventListener('click', openMasterRoster);
+document.getElementById('btn-back-master-roster').addEventListener('click', ()=> history.back());
+document.getElementById('btn-toggle-mr-manual').addEventListener('click', ()=>{
+  document.getElementById('mr-manual-wrap').classList.toggle('hidden');
+});
+
+document.getElementById('mr-course').addEventListener('change', ()=> loadSectionsForCourse());
+document.getElementById('mr-section-view').addEventListener('change', ()=> loadCurrentMasterRoster());
+
+/* Find every masterRosters doc for this course — both new per-section docs
+   and (if present) the old combined doc from before this feature existed —
+   and populate the Section dropdown from them. */
+async function loadSectionsForCourse(){
+  const courseId = document.getElementById('mr-course').value;
+  const viewWrap = document.getElementById('mr-section-view-wrap');
+  const viewSel = document.getElementById('mr-section-view');
+  const info = document.getElementById('mr-existing-info');
+  const listWrap = document.getElementById('mr-current-list-wrap');
+  const splitBtn = document.getElementById('btn-split-legacy');
+  const deleteCourseBtn = document.getElementById('btn-delete-course-rosters');
+  document.getElementById('mr-search').value = '';
+  state.mrCurrentRosterKey = null; state.mrCurrentRosterStudents = []; state.mrLegacyKey = null;
+  splitBtn.classList.add('hidden');
+  deleteCourseBtn.classList.add('hidden');
+  if(!courseId){ viewWrap.classList.add('hidden'); info.textContent=''; listWrap.classList.add('hidden'); return; }
+
+  info.textContent = 'Checking for existing rosters…';
+  listWrap.classList.add('hidden');
+  viewWrap.classList.add('hidden');
+
+  try{
+    const snap = await db.collection('masterRosters')
+      .where('departmentId','==', state.hodDept.id)
+      .where('courseId','==', courseId).get();
+
+    const options = []; // {value, label, isLegacy}
+    let legacyDoc = null, legacyKey = null;
+    const lKey = legacyRosterKey(state.hodDept.id, courseId);
+
+    snap.forEach(doc=>{
+      const d = doc.data();
+      if(doc.id === lKey){
+        legacyDoc = d; legacyKey = doc.id;
+      } else if(d.sectionName){
+        options.push({ value: doc.id, label: `${d.sectionName} (${(d.students||[]).length})`, isLegacy:false });
+      }
+    });
+
+    // Sections buried inside the old combined doc that don't have their own doc yet
+    if(legacyDoc){
+      const covered = new Set(options.map(o=>normalizeSection(o.value.split('_').pop())));
+      const bySection = {};
+      (legacyDoc.students||[]).forEach(s=>{
+        const sec = normalizeSection(s.section);
+        if(!sec) return;
+        (bySection[sec] = bySection[sec] || []).push(s);
+      });
+      Object.entries(bySection).forEach(([sec, arr])=>{
+        if(!covered.has(sec)){
+          options.push({ value: `LEGACY::${sec}`, label: `${sec} (${arr.length}) — needs splitting`, isLegacy:true });
+        }
+      });
+      const unlabeled = (legacyDoc.students||[]).filter(s=>!normalizeSection(s.section)).length;
+      if(unlabeled>0){
+        options.push({ value: `LEGACY::__NONE__`, label: `No section on file (${unlabeled}) — needs splitting`, isLegacy:true });
+      }
+      splitBtn.classList.remove('hidden');
+      state.mrLegacyFullList = legacyDoc.students||[];
+      state.mrLegacyKeyForSplit = legacyKey;
+    } else {
+      state.mrLegacyFullList = null;
+      state.mrLegacyKeyForSplit = null;
+    }
+
+    state.mrSectionOptions = options;
+    if(options.length===0){
+      viewWrap.classList.add('hidden');
+      info.textContent = 'No roster uploaded yet for this course.';
+      return;
+    }
+    viewWrap.classList.remove('hidden');
+    deleteCourseBtn.classList.remove('hidden');
+    viewSel.innerHTML = '<option value="">Select section…</option>' +
+      options.map(o=>`<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+    info.textContent = 'Pick a section above to view or edit its roster.';
+  } catch(err){
+    info.textContent = '';
+    console.error(err);
+  }
+}
+
+document.getElementById('btn-split-legacy').addEventListener('click', async ()=>{
+  if(!state.mrLegacyFullList || !state.mrLegacyKeyForSplit) return;
+  if(!confirm('Split the combined roster into one roster per section? The old combined roster will be removed afterwards.')) return;
+  const courseId = document.getElementById('mr-course').value;
+  const course = state.courses.find(c=>c.id===courseId);
+  const bySection = {};
+  state.mrLegacyFullList.forEach(s=>{
+    const sec = normalizeSection(s.section) || '__NONE__';
+    (bySection[sec] = bySection[sec] || []).push(s);
+  });
+  try{
+    const batch = db.batch();
+    for(const [sec, arr] of Object.entries(bySection)){
+      if(sec==='__NONE__') continue; // nothing to key these under — leave them out of the split
+      const ref = db.collection('masterRosters').doc(sectionRosterKey(state.hodDept.id, courseId, sec));
+      const existing = await ref.get();
+      const merged = existing.exists ? existing.data().students||[] : [];
+      const existingRolls = new Set(merged.map(s=>s.rollNumber));
+      arr.forEach(s=>{ if(!existingRolls.has(s.rollNumber)) merged.push(s); });
+      batch.set(ref, {
+        departmentId: state.hodDept.id, departmentName: state.hodDept.name,
+        courseId, courseName: course?course.name:'', sectionName: arr[0].section || sec, sectionKey: normalizeSection(arr[0].section || sec),
+        students: merged, updatedBy: state.user.uid, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    batch.delete(db.collection('masterRosters').doc(state.mrLegacyKeyForSplit));
+    await batch.commit();
+    toast('Split into per-section rosters');
+    loadSectionsForCourse();
+  } catch(err){
+    toast('Failed to split — check permissions');
+    console.error(err);
+  }
+});
+
+document.getElementById('btn-delete-section-roster').addEventListener('click', async ()=>{
+  if(!state.mrCurrentRosterKey || state.mrLegacyKey){ return; } // legacy-combined view is blocked from here
+  const count = state.mrCurrentRosterStudents.length;
+  const label = document.getElementById('mr-section-view').selectedOptions[0]?.textContent || 'this section';
+  if(!confirm(`Delete the master roster for ${label}? This removes all ${count} student(s) from the master roster permanently. Students already fetched into professors' classes are not affected. This cannot be undone.`)) return;
+  const btn = document.getElementById('btn-delete-section-roster');
+  btn.disabled = true;
+  try{
+    await db.collection('masterRosters').doc(state.mrCurrentRosterKey).delete();
+    toast('Master roster deleted for this section');
+    loadSectionsForCourse();
+  } catch(err){
+    toast('Failed to delete — check permissions');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('btn-delete-course-rosters').addEventListener('click', async ()=>{
+  const courseId = document.getElementById('mr-course').value;
+  if(!courseId) return;
+  const course = state.courses.find(c=>c.id===courseId);
+  const totalSections = state.mrSectionOptions.filter(o=>!o.isLegacy).length + (state.mrLegacyKeyForSplit ? 1 : 0);
+  if(!confirm(`Delete ALL master rosters for ${course?course.name:'this course'}? This removes every section's roster (${totalSections} roster document(s)) permanently. Students already fetched into professors' classes are not affected. This cannot be undone.`)) return;
+  const btn = document.getElementById('btn-delete-course-rosters');
+  btn.disabled = true;
+  try{
+    const snap = await db.collection('masterRosters')
+      .where('departmentId','==', state.hodDept.id)
+      .where('courseId','==', courseId).get();
+    const batch = db.batch();
+    snap.forEach(doc=> batch.delete(doc.ref));
+    await batch.commit();
+    toast('All master rosters deleted for this course');
+    loadSectionsForCourse();
+  } catch(err){
+    toast('Failed to delete — check permissions');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function loadCurrentMasterRoster(){
+  const courseId = document.getElementById('mr-course').value;
+  const value = document.getElementById('mr-section-view').value;
+  const info = document.getElementById('mr-existing-info');
+  const listWrap = document.getElementById('mr-current-list-wrap');
+  const deleteSectionBtn = document.getElementById('btn-delete-section-roster');
+  document.getElementById('mr-search').value = '';
+  if(!courseId || !value){ listWrap.classList.add('hidden'); deleteSectionBtn.classList.add('hidden'); state.mrCurrentRosterKey=null; state.mrLegacyKey=null; state.mrCurrentRosterStudents=[]; return; }
+
+  if(value.startsWith('LEGACY::')){
+    const sec = value.slice('LEGACY::'.length);
+    const filtered = sec==='__NONE__'
+      ? (state.mrLegacyFullList||[]).filter(s=>!normalizeSection(s.section))
+      : (state.mrLegacyFullList||[]).filter(s=>normalizeSection(s.section)===sec);
+    state.mrCurrentRosterKey = state.mrLegacyKeyForSplit;
+    state.mrLegacyKey = state.mrLegacyKeyForSplit; // removing a student here edits the combined doc
+    state.mrCurrentRosterStudents = filtered;
+    info.textContent = `${filtered.length} student(s) in this section — from the old combined roster. Use "Split" above to give it its own roster.`;
+    deleteSectionBtn.classList.add('hidden'); // deleting here would wipe every other section too — block it
+  } else {
+    state.mrLegacyKey = null;
+    state.mrCurrentRosterKey = value;
+    info.textContent = 'Loading…';
+    db.collection('masterRosters').doc(value).get().then(doc=>{
+      state.mrCurrentRosterStudents = doc.exists ? (doc.data().students||[]) : [];
+      info.textContent = `${state.mrCurrentRosterStudents.length} student(s) in this section. Uploading below replaces this section's list — use search below to remove individuals instead.`;
+      renderMrCurrentList();
+    }).catch(()=>{ info.textContent=''; });
+    deleteSectionBtn.classList.remove('hidden');
+    listWrap.classList.remove('hidden');
+    return;
+  }
+  listWrap.classList.remove('hidden');
+  renderMrCurrentList();
+}
+
+function renderMrCurrentList(){
+  const wrap = document.getElementById('mr-current-list');
+  const query = document.getElementById('mr-search').value.trim().toLowerCase();
+  const filtered = query
+    ? state.mrCurrentRosterStudents.filter(s=>
+        (s.name||'').toLowerCase().includes(query) || (s.rollNumber||'').toLowerCase().includes(query))
+    : state.mrCurrentRosterStudents;
+
+  if(filtered.length===0){
+    wrap.innerHTML = `<p class="hint-text">${query ? 'No matches.' : 'No students in this roster yet.'}</p>`;
+    return;
+  }
+  wrap.innerHTML = filtered.slice(0,200).map(s=>`
+    <div class="catalog-row" data-roll="${escapeHtml(s.rollNumber)}">
+      <div>
+        <div class="name">${escapeHtml(s.name)}</div>
+        <div class="sub">${escapeHtml(s.rollNumber)}${s.contact? ' · '+escapeHtml(s.contact):''}</div>
+      </div>
+      <button class="catalog-del" data-roll="${escapeHtml(s.rollNumber)}" aria-label="Remove student">×</button>
+    </div>`).join('') + (filtered.length>200 ? `<p class="hint-text">Showing first 200 of ${filtered.length} matches — narrow your search to see more.</p>` : '');
+
+  wrap.querySelectorAll('.catalog-del').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const roll = btn.dataset.roll;
+      const student = state.mrCurrentRosterStudents.find(s=>s.rollNumber===roll);
+      if(!confirm(`Remove ${student ? student.name : roll} from the master roster? This won't affect professors who already fetched this student into their class.`)) return;
+      const newDisplayList = state.mrCurrentRosterStudents.filter(s=>s.rollNumber !== roll);
+      try{
+        if(state.mrLegacyKey){
+          // Editing the old combined doc — only remove this one student from the full list,
+          // keep every other section's students untouched.
+          const newFullList = (state.mrLegacyFullList||[]).filter(s=>s.rollNumber !== roll);
+          await db.collection('masterRosters').doc(state.mrLegacyKey).update({ students: newFullList });
+          state.mrLegacyFullList = newFullList;
+        } else {
+          await db.collection('masterRosters').doc(state.mrCurrentRosterKey).update({ students: newDisplayList });
+        }
+        state.mrCurrentRosterStudents = newDisplayList;
+        renderMrCurrentList();
+        toast('Removed from master roster');
+      } catch(err){
+        toast('Failed to remove — check permissions');
+        console.error(err);
+      }
+    });
+  });
+}
+
+document.getElementById('mr-search').addEventListener('input', renderMrCurrentList);
+
+/* ---- Header-flexible column matching for the uploaded spreadsheet ---- */
+function normalizeHeader(h){
+  return String(h||'').toUpperCase().replace(/[\s_.-]/g,'');
+}
+const MR_HEADER_MAP = {
+  rollNumber: ['ROLLNUMBER','ROLLNO','ROLL','UID','ENROLLMENTNO','ENROLLMENTNUMBER'],
+  name: ['STUDENTNAME','NAME','FULLNAME'],
+  contact: ['MOBILENO','MOBILE','CONTACT','PHONE','PHONENO','MOBILENUMBER'],
+  email: ['EMAIL','EMAILID','EMAILADDRESS'],
+  combination: ['COMBINATION','COMBO','GROUP'],
+  // Kept as two separate fields (not merged into one) so a file that has
+  // BOTH a Section and a Batch column — e.g. SECTION_NAME "M5M6" (the
+  // combined theory class) and BATCH_NAME "M5" (the smaller practical
+  // batch inside it) — ends up fetchable under *either* name. See
+  // renderSectionChecks(), which turns each distinct value of either
+  // column into its own saveable roster.
+  section: ['SECTIONNAME','SECTION'],
+  batch: ['BATCHNAME','BATCH']
+};
+function matchHeaderKey(header){
+  const norm = normalizeHeader(header);
+  for(const [field, variants] of Object.entries(MR_HEADER_MAP)){
+    if(variants.includes(norm)) return field;
+  }
+  return null;
+}
+
+function parseSpreadsheetFile(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = ()=> reject(new Error('Could not read file'));
+    reader.onload = (e)=>{
+      try{
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type:'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+        const students = rows.map(row=>{
+          const mapped = {};
+          Object.keys(row).forEach(h=>{
+            const field = matchHeaderKey(h);
+            if(field) mapped[field] = String(row[h]).trim();
+          });
+          return mapped;
+        }).filter(s=> s.rollNumber && s.name);
+        resolve(students);
+      } catch(err){ reject(err); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function applyComboFilterAndPreview(){
+  if(!state.mrRawFileStudents) return;
+  const filterText = document.getElementById('mr-combo-filter').value.trim();
+  const codes = filterText ? filterText.split(',').map(c=>c.trim().toUpperCase()).filter(Boolean) : [];
+  const filtered = codes.length
+    ? state.mrRawFileStudents.filter(s=> codes.includes(String(s.combination||'').toUpperCase()))
+    : state.mrRawFileStudents;
+  document.getElementById('mr-preview-info').textContent =
+    `${filtered.length} of ${state.mrRawFileStudents.length} student(s) matched${codes.length ? ' (filtered by combination)' : ''}.`;
+  renderSectionChecks(filtered);
+  return filtered;
+}
+
+/* Group the (combination-filtered) rows by BOTH their Section column and
+   their Batch column and show one checkbox per distinct value — each
+   checked value becomes its own roster, saved under its own name.
+   A student whose row has SECTION_NAME "M5M6" and BATCH_NAME "M5" lands in
+   BOTH the "M5M6" group and the "M5" group, so a professor can later fetch
+   the same student by setting their class name to either "M5M6" (the
+   combined section) or "M5" (the individual batch) — whichever matches how
+   that particular professor's class is organized. */
+function renderSectionChecks(filtered){
+  const wrap = document.getElementById('mr-section-checks-wrap');
+  const box = document.getElementById('mr-section-checks');
+  const groups = {};
+  const labelType = {}; // label -> 'section' | 'batch' | 'both'
+  let noneCount = 0;
+  filtered.forEach(s=>{
+    const sec = s.section ? s.section.trim() : '';
+    const bat = s.batch ? s.batch.trim() : '';
+    if(sec){
+      (groups[sec] = groups[sec] || []).push(s);
+      labelType[sec] = labelType[sec] && labelType[sec]!=='section' ? 'both' : 'section';
+    }
+    if(bat && bat!==sec){
+      (groups[bat] = groups[bat] || []).push(s);
+      labelType[bat] = labelType[bat] && labelType[bat]!=='batch' ? 'both' : 'batch';
+    }
+    if(!sec && !bat) noneCount++;
+  });
+  const labels = Object.keys(groups).sort();
+  state.mrSectionGroups = groups;
+  if(labels.length===0){ wrap.classList.add('hidden'); box.innerHTML=''; return; }
+  wrap.classList.remove('hidden');
+  box.innerHTML = labels.map(label=>{
+    const tag = labelType[label]==='batch' ? 'Batch' : labelType[label]==='both' ? 'Section/Batch' : 'Section';
+    return `
+    <label style="display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line);">
+      <input type="checkbox" class="mr-section-check" data-label="${escapeHtml(label)}" checked />
+      <span>${escapeHtml(label)} <span class="hint-text" style="display:inline;">(${tag})</span> — ${groups[label].length} student(s)</span>
+    </label>`;
+  }).join('') + (noneCount>0 ? `<p class="hint-text" style="margin-top:8px;">${noneCount} student(s) have neither a Section nor a Batch value and won't be included in any roster.</p>` : '');
+}
+
+document.getElementById('mr-file-input').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const preview = document.getElementById('mr-preview-info');
+  preview.textContent = 'Reading file…';
+  try{
+    const students = await parseSpreadsheetFile(file);
+    if(students.length===0){
+      preview.textContent = 'No valid rows found — check the file has Roll Number and Name columns.';
+      state.mrRawFileStudents = null;
+      return;
+    }
+    state.mrRawFileStudents = students;
+    applyComboFilterAndPreview();
+  } catch(err){
+    preview.textContent = 'Failed to read this file — is it a valid .xlsx/.xls/.csv?';
+    state.mrRawFileStudents = null;
+    console.error(err);
+  }
+});
+
+document.getElementById('mr-combo-filter').addEventListener('input', applyComboFilterAndPreview);
+
+function parseRosterText(text){
+  return text.split('\n').map(line=>{
+    const parts = line.split(',').map(p=>p.trim());
+    if(parts.length < 2 || !parts[0] || !parts[1]) return null;
+    return { name: parts[0], rollNumber: parts[1], contact: parts[2]||'', email: parts[3]||'' };
+  }).filter(Boolean);
+}
+
+document.getElementById('btn-save-master-roster').addEventListener('click', async ()=>{
+  const courseId = document.getElementById('mr-course').value;
+  if(!courseId){ toast('Select a course first'); return; }
+  const course = state.courses.find(c=>c.id===courseId);
+  const btn = document.getElementById('btn-save-master-roster');
+
+  // Manual paste path — one section per paste, entered explicitly since there's no file column for it
+  const pastedText = document.getElementById('mr-roster-text').value.trim();
+  const usingFile = !!state.mrRawFileStudents;
+
+  if(!usingFile && pastedText){
+    const manualSection = document.getElementById('mr-manual-section').value.trim();
+    if(!manualSection){ toast('Enter a section / class name for this pasted list'); return; }
+    const students = parseRosterText(pastedText);
+    if(students.length===0){ toast('Paste at least one student first'); return; }
+    const key = sectionRosterKey(state.hodDept.id, courseId, manualSection);
+    setBtnLoading(btn, true);
+    try{
+      const existing = await db.collection('masterRosters').doc(key).get();
+      const prior = existing.exists ? (existing.data().students||[]) : [];
+      const priorRolls = new Set(prior.map(s=>s.rollNumber));
+      const merged = prior.concat(students.filter(s=>!priorRolls.has(s.rollNumber)));
+      await db.collection('masterRosters').doc(key).set({
+        departmentId: state.hodDept.id, departmentName: state.hodDept.name,
+        courseId, courseName: course?course.name:'', sectionName: manualSection, sectionKey: normalizeSection(manualSection),
+        students: merged, updatedBy: state.user.uid, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      setBtnLoading(btn, false, 'Save Master Roster');
+      toast(`Saved ${students.length} student(s) to ${manualSection}`);
+      loadSectionsForCourse();
+    } catch(err){
+      setBtnLoading(btn, false, 'Save Master Roster');
+      toast('Failed to save — check permissions');
+      console.error(err);
+    }
+    return;
+  }
+
+  // File path — save one roster per checked section
+  if(!state.mrSectionGroups || Object.keys(state.mrSectionGroups).length===0){
+    toast('Upload a file or paste at least one student first');
+    return;
+  }
+  const checks = document.querySelectorAll('.mr-section-check:checked');
+  if(checks.length===0){ toast('Select at least one section to save'); return; }
+
+  setBtnLoading(btn, true);
+  try{
+    const batch = db.batch();
+    let totalStudents = 0;
+    checks.forEach(chk=>{
+      const label = chk.dataset.label;
+      const students = state.mrSectionGroups[label] || [];
+      if(label === '(no section on file)') return; // nothing to key these under — skip
+      const ref = db.collection('masterRosters').doc(sectionRosterKey(state.hodDept.id, courseId, label));
+      batch.set(ref, {
+        departmentId: state.hodDept.id, departmentName: state.hodDept.name,
+        courseId, courseName: course?course.name:'', sectionName: label, sectionKey: normalizeSection(label),
+        students, updatedBy: state.user.uid, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      totalStudents += students.length;
+    });
+    await batch.commit();
+    setBtnLoading(btn, false, 'Save Master Roster');
+    toast(`Saved ${totalStudents} student(s) across ${checks.length} section(s)`);
+    history.back();
+  } catch(err){
+    setBtnLoading(btn, false, 'Save Master Roster');
+    toast('Failed to save — check permissions');
+    console.error(err);
+  }
+});
+
+/* ---- Professor side: fetch a master roster into their own class ----
+   A roster is matched by section/class name WITHIN the same course
+   (course = semester, e.g. "B.Sc I Sem" vs "B.Sc III Sem"). Two different
+   semesters can reuse the same section label (e.g. "M11") without their
+   rosters bleeding into each other, because courseId scopes the match. */
+async function fetchMasterRoster(){
+  const cls = state.classes.find(c=>c.id===state.activeClassId);
+  if(!cls || !cls.className){
+    toast('Set a class / section name first');
+    return;
+  }
+  const btn = document.getElementById('btn-fetch-roster');
+  setBtnLoading(btn, true);
+
+  try{
+    const sectionKey = normalizeSection(cls.className);
+    // Look for a matching section within THIS class's own course/semester
+    // first. Only fall back to a college-wide search (below) if the class
+    // has no courseId at all (very old classes, pre-migration).
+    let query = db.collection('masterRosters').where('sectionKey','==', sectionKey);
+    if(cls.courseId){
+      query = query.where('courseId','==', cls.courseId);
+    }
+    const snap = await query.get();
+
+    let students = [];
+    if(!snap.empty){
+      const seen = new Set();
+      snap.forEach(doc=>{
+        (doc.data().students||[]).forEach(s=>{
+          const roll = String(s.rollNumber||'').trim();
+          if(roll && !seen.has(roll)){ seen.add(roll); students.push(s); }
+        });
+      });
+    } else if(cls.departmentId && cls.courseId){
+      // Backward compatibility: rosters saved before this update don't have a
+      // sectionKey field yet — check this class's own department & course
+      // directly first (the exact doc it would have been keyed under).
+      const directDoc = await db.collection('masterRosters').doc(sectionRosterKey(cls.departmentId, cls.courseId, cls.className)).get();
+      if(directDoc.exists){
+        students = directDoc.data().students || [];
+        if(!directDoc.data().sectionKey){
+          directDoc.ref.update({ sectionKey }).catch(()=>{}); // backfill so college-wide lookups find it next time
+        }
+      } else {
+        // Fall back further to an even older combined roster (from before rosters
+        // were split by section) and filter it down to just this class's section.
+        const legacyDoc = await db.collection('masterRosters').doc(legacyRosterKey(cls.departmentId, cls.courseId)).get();
+        if(legacyDoc.exists){
+          const all = legacyDoc.data().students || [];
+          students = all.filter(s => normalizeSection(s.section) === sectionKey);
+        }
+      }
+    }
+
+    if(students.length===0){
+      setBtnLoading(btn, false, '⇩ Fetch from Master Roster');
+      toast(`No master roster uploaded yet for section "${cls.className}" — ask your Section Incharge`);
+      return;
+    }
+    const existingRolls = new Set(state.students.map(s=> String(s.rollNumber||'').trim()).filter(Boolean));
+    const newOnes = students.filter(s=> s.rollNumber && !existingRolls.has(String(s.rollNumber).trim()));
+
+    if(newOnes.length===0){
+      setBtnLoading(btn, false, '⇩ Fetch from Master Roster');
+      toast('All students from the master roster are already in your class');
+      return;
+    }
+
+    const classRef = db.collection('classes').doc(state.activeClassId);
+    let i = 0;
+    while(i < newOnes.length){
+      const chunk = newOnes.slice(i, i+450);
+      const batch = db.batch();
+      chunk.forEach(s=>{
+        const ref = classRef.collection('students').doc(String(s.rollNumber).trim());
+        batch.set(ref, { name: s.name||'', rollNumber: s.rollNumber, contact: s.contact||'', email: s.email||'', lecturesAttended: 0 });
+      });
+      await batch.commit();
+      i += 450;
+    }
+    const clsForPublicView = state.classes.find(c=>c.id===state.activeClassId);
+    writePublicViewBatch(clsForPublicView, newOnes.map(s=>({ ...s, lecturesAttended: 0 })));
+    setBtnLoading(btn, false, '⇩ Fetch from Master Roster');
+    toast(`Fetched ${newOnes.length} new student(s)`);
+  } catch(err){
+    setBtnLoading(btn, false, '⇩ Fetch from Master Roster');
+    toast('Failed to fetch roster — check permissions');
+    console.error(err);
+  }
+}
+document.getElementById('btn-fetch-roster').addEventListener('click', fetchMasterRoster);
+
+/* =====================================================================
+   FIRESTORE — SUBJECTS
+   ===================================================================== */
+function loadSubjects(){
+  db.collection('classes').where('professorId','==', state.user.uid)
+    .onSnapshot(snap=>{
+      state.classes = [];
+      snap.forEach(doc=> state.classes.push({id:doc.id, ...doc.data()}));
+      renderSubjects();
+    }, err=> toast('Could not load subjects'));
+}
+
+function renderSubjects(){
+  const list = document.getElementById('subject-list');
+  const empty = document.getElementById('subject-empty');
+  list.innerHTML = '';
+  if(state.classes.length === 0){ empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  state.classes.forEach(c=>{
+    const card = document.createElement('div');
+    card.className = 'subject-card';
+    const initials = (c.className||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    const contextLine = c.courseId
+      ? `${escapeHtml(c.departmentName||'')} · ${escapeHtml(c.courseName||'')} · ${c.totalLectures||0} lectures`
+      : `${c.totalLectures||0} lectures logged · <span style="color:var(--gold); font-weight:600;">tap to assign a course</span>`;
+    card.innerHTML = `
+      <div class="subject-glyph">${initials}</div>
+      <div class="subject-info">
+        <h3>${escapeHtml(c.className)}</h3>
+        <p>${contextLine}</p>
+      </div>
+      <div class="subject-arrow">›</div>`;
+    card.addEventListener('click', ()=>{
+      if(!c.courseId){ openAddClass('assign', c.id, c); }
+      else{ openSubject(c.id); }
+    });
+    list.appendChild(card);
+  });
+}
+
+document.getElementById('btn-add-subject').addEventListener('click', ()=> openAddClass('create'));
+
+/* =====================================================================
+   SUBJECT DETAIL
+   ===================================================================== */
+let unsubStudents = null;
+
+function openSubject(classId, readOnly){
+  state.activeClassId = classId;
+  state.readOnly = !!readOnly;
+  state.subjectOpenedFrom = readOnly ? 'principal' : 'dashboard';
+  state.markSearchQuery = '';
+  document.getElementById('mark-search').value = '';
+
+  const cls = readOnly ? state.allClasses.find(c=>c.id===classId) : state.classes.find(c=>c.id===classId);
+  document.getElementById('subj-title').textContent = cls ? cls.className : 'Subject';
+
+  // Read-only (principal) view: hide the Mark tab and the Add Student form — this is a view, not an edit surface
+  document.getElementById('tabbtn-mark').classList.toggle('hidden', state.readOnly);
+  document.getElementById('add-student-card').classList.toggle('hidden', state.readOnly);
+  document.getElementById('btn-fetch-roster').classList.toggle('hidden', state.readOnly || !cls || !cls.className);
+  document.getElementById('btn-delete-class').classList.toggle('hidden', state.readOnly);
+
+  goToScreen('screen-subject');
+  switchTab(state.readOnly ? 'roster' : 'mark');
+  if(unsubStudents) unsubStudents();
+  unsubStudents = db.collection('classes').doc(classId).collection('students')
+    .onSnapshot(snap=>{
+      state.students = [];
+      snap.forEach(doc=> state.students.push({id:doc.id, ...doc.data()}));
+      state.students.sort((a,b)=> (a.rollNumber||'').localeCompare(b.rollNumber||'', undefined, {numeric:true}));
+      renderRoster();
+      if(!state.readOnly) loadAttendanceForDate(state.markDate, true);
+      // Backfill: keeps publicView in sync for students who existed before this
+      // feature was added (or before a fix was redeployed) — not just ones
+      // touched by a fresh add/fetch/submit. Cheap no-op once everything matches.
+      const clsForSync = readOnly ? state.allClasses.find(c=>c.id===classId) : state.classes.find(c=>c.id===classId);
+      writePublicViewBatch(clsForSync, state.students);
+    });
+  loadMonthAttendance();
+}
+
+document.getElementById('btn-back-dash').addEventListener('click', ()=> history.back());
+
+/* ---- Delete an accidentally-created class (and everything under it) ---- */
+async function deleteAllInSubcollection(colRef){
+  while(true){
+    const snap = await colRef.limit(450).get();
+    if(snap.empty) break;
+    const batch = db.batch();
+    snap.docs.forEach(d=> batch.delete(d.ref));
+    await batch.commit();
+    if(snap.size < 450) break;
+  }
+}
+async function deleteClassCascade(classId){
+  const classRef = db.collection('classes').doc(classId);
+  await deleteAllInSubcollection(classRef.collection('students'));
+  await deleteAllInSubcollection(classRef.collection('attendance_records'));
+  await deleteAllInSubcollection(classRef.collection('syllabus'));
+  await classRef.delete();
+}
+document.getElementById('btn-delete-class').addEventListener('click', async ()=>{
+  const cls = state.classes.find(c=>c.id===state.activeClassId);
+  if(!cls) return;
+  const warn = `Delete "${cls.className}"? This permanently removes ${state.students.length} student(s) and every attendance record logged for this class. This cannot be undone.`;
+  if(!confirm(warn)) return;
+
+  const btn = document.getElementById('btn-delete-class');
+  btn.disabled = true;
+  try{
+    await deleteClassCascade(state.activeClassId);
+    toast('Class deleted');
+    history.back();
+  } catch(err){
+    toast('Failed to delete — check permissions');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
+});
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.tabpanel').forEach(p=> p.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.getElementById('mark-cta-wrap').classList.toggle('hidden', tab!=='mark' || state.readOnly);
+  if(tab==='calendar') renderCalendar();
+  if(tab==='report') renderReportTab();
+}
+
+function escapeHtml(str){
+  return String(str||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* ---------------------------------------------------------------------
+   PUBLIC ATTENDANCE VIEW (student-facing, no login)
+   A student looks themselves up by Roll Number (typed exactly as stored —
+   case-sensitive) + the last 5 digits of the mobile number on file. Both
+   together form the doc ID in the top-level `publicView` collection, so a
+   lookup is only possible if you already know both pieces — Firestore
+   rules allow `get` on a known ID but deny `list`, so the collection can't
+   be browsed or scraped.
+   --------------------------------------------------------------------- */
+function digitsOnly(str){ return String(str||'').replace(/\D/g,''); }
+
+function last5Digits(str){
+  const d = digitsOnly(str);
+  return d.length>=5 ? d.slice(-5) : null;
+}
+
+function sanitizeRollForId(roll){
+  // Firestore doc IDs can't contain "/"; keep everything else (including case) intact.
+  return String(roll||'').trim().replace(/[\/\s]+/g,'-');
+}
+
+function publicViewId(rollNumber, contact){
+  const roll = sanitizeRollForId(rollNumber);
+  const last5 = last5Digits(contact);
+  if(!roll || !last5) return null;
+  return `${roll}_${last5}`;
+}
+
+/* Writes/updates one publicView doc per student who has a usable phone
+   number on file. Students without at least 5 digits in their contact
+   field are silently skipped (they just won't have self-view available
+   until a valid number is added). */
+function writePublicViewBatch(cls, students){
+  if(!cls || !students || students.length===0) return Promise.resolve();
+  const total = cls.totalLectures || 0;
+  const batch = db.batch();
+  let count = 0;
+  students.forEach(s=>{
+    const id = publicViewId(s.rollNumber, s.contact);
+    if(!id) return;
+    const attended = s.lecturesAttended || 0;
+    batch.set(db.collection('publicView').doc(id), {
+      rollNumber: String(s.rollNumber).trim(),
+      name: s.name || '',
+      className: cls.className || '',
+      departmentName: cls.departmentName || '',
+      courseName: cls.courseName || '',
+      totalLectures: total,
+      lecturesAttended: attended,
+      percentage: total>0 ? Math.round((attended/total)*1000)/10 : 0,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true});
+    count++;
+  });
+  if(count===0) return Promise.resolve();
+  return batch.commit().catch(err=> console.error('publicView sync failed', err));
+}
+
+/* ---------------------------------------------------------------------
+   ROSTER MANAGEMENT
+   --------------------------------------------------------------------- */
+document.getElementById('btn-save-next').addEventListener('click', ()=>{
+  const name = document.getElementById('stu-name').value.trim();
+  const roll = document.getElementById('stu-roll').value.trim();
+  const contact = document.getElementById('stu-contact').value.trim();
+  if(!name || !roll){ toast('Name and Roll Number are required'); return; }
+
+  const btn = document.getElementById('btn-save-next');
+  setBtnLoading(btn, true);
+  db.collection('classes').doc(state.activeClassId).collection('students').add({
+    name, rollNumber: roll, contact, lecturesAttended: 0
+  }).then(()=>{
+    setBtnLoading(btn, false, 'Save &amp; Add Next');
+    document.getElementById('stu-name').value='';
+    document.getElementById('stu-roll').value='';
+    document.getElementById('stu-contact').value='';
+    document.getElementById('stu-name').focus();
+    toast('Student added');
+    const cls = state.classes.find(c=>c.id===state.activeClassId);
+    writePublicViewBatch(cls, [{ rollNumber: roll, name, contact, lecturesAttended: 0 }]);
+  }).catch(()=>{
+    setBtnLoading(btn, false, 'Save &amp; Add Next');
+    toast('Failed to save student');
+  });
+});
+
+function totalLecturesOf(classId){
+  const source = state.readOnly ? state.allClasses : state.classes;
+  const c = source.find(x=>x.id===classId);
+  return c ? (c.totalLectures||0) : 0;
+}
+
+function renderRoster(){
+  const list = document.getElementById('roster-list');
+  document.getElementById('roster-count').textContent = state.students.length;
+  list.innerHTML = '';
+  const total = totalLecturesOf(state.activeClassId);
+  state.students.forEach(s=>{
+    const pct = total>0 ? Math.round((s.lecturesAttended||0)/total*100) : 0;
+    const row = document.createElement('div');
+    row.className = 'student-row';
+    row.style.cursor = 'default';
+    row.innerHTML = `
+      ${ringSVG(pct,false)}
+      <div class="student-meta">
+        <p class="name">${escapeHtml(s.name)}</p>
+        <p class="sub mono">${escapeHtml(s.rollNumber)}${s.contact? ' · '+escapeHtml(s.contact):''}${s.email? ' · '+escapeHtml(s.email):''}</p>
+      </div>
+      <div class="student-pct mono">${pct}%</div>
+      ${state.readOnly ? '' : `<button class="catalog-edit" data-student-id="${s.id}" aria-label="Edit student" style="margin-left:8px;">✎</button><button class="catalog-del" data-student-id="${s.id}" aria-label="Remove student" style="margin-left:6px;">×</button>`}`;
+    if(!state.readOnly){
+      row.querySelector('.catalog-edit').addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        openEditStudent(s);
+      });
+      row.querySelector('.catalog-del').addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        if(!confirm(`Remove ${s.name} from this class? Their past attendance history stays intact, but they won't appear for future marking.`)) return;
+        db.collection('classes').doc(state.activeClassId).collection('students').doc(s.id).delete()
+          .then(()=> toast('Student removed'))
+          .catch(()=> toast('Failed to remove student'));
+      });
+    }
+    list.appendChild(row);
+  });
+}
+
+function ringSVG(pct, absent){
+  const r = 18, c = 2*Math.PI*r;
+  const offset = c - (pct/100)*c;
+  const color = absent ? 'var(--rose)' : 'var(--emerald)';
+  const init = '';
+  return `<div class="ring">
+    <svg width="44" height="44" viewBox="0 0 44 44">
+      <circle cx="22" cy="22" r="${r}" fill="none" stroke="var(--line)" stroke-width="3"></circle>
+      <circle cx="22" cy="22" r="${r}" fill="none" stroke="${color}" stroke-width="3"
+        stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"></circle>
+    </svg>
+    <span class="init">${pct}</span>
+  </div>`;
+}
+
+/* ---------------------------------------------------------------------
+   EDIT STUDENT
+   --------------------------------------------------------------------- */
+let editingStudentId = null;
+
+function openEditStudent(s){
+  editingStudentId = s.id;
+  document.getElementById('edit-stu-name').value = s.name || '';
+  document.getElementById('edit-stu-roll').value = s.rollNumber || '';
+  document.getElementById('edit-stu-contact').value = s.contact || '';
+  document.getElementById('student-edit-overlay').classList.add('active');
+}
+function closeEditStudent(){
+  editingStudentId = null;
+  document.getElementById('student-edit-overlay').classList.remove('active');
+}
+document.getElementById('btn-cancel-edit-student').addEventListener('click', closeEditStudent);
+document.getElementById('student-edit-overlay').addEventListener('click', (ev)=>{
+  if(ev.target.id === 'student-edit-overlay') closeEditStudent();
+});
+document.getElementById('btn-save-edit-student').addEventListener('click', ()=>{
+  if(!editingStudentId) return;
+  const name = document.getElementById('edit-stu-name').value.trim();
+  const roll = document.getElementById('edit-stu-roll').value.trim();
+  const contact = document.getElementById('edit-stu-contact').value.trim();
+  if(!name || !roll){ toast('Name and Roll Number are required'); return; }
+
+  const btn = document.getElementById('btn-save-edit-student');
+  setBtnLoading(btn, true);
+  const studentId = editingStudentId;
+  db.collection('classes').doc(state.activeClassId).collection('students').doc(studentId)
+    .update({ name, rollNumber: roll, contact })
+    .then(()=>{
+      setBtnLoading(btn, false, 'Save Changes');
+      toast('Student updated');
+      closeEditStudent();
+      const cls = state.classes.find(c=>c.id===state.activeClassId);
+      writePublicViewBatch(cls, [{ rollNumber: roll, name, contact, lecturesAttended: (state.students.find(x=>x.id===studentId)||{}).lecturesAttended || 0 }]);
+    })
+    .catch(()=>{
+      setBtnLoading(btn, false, 'Save Changes');
+      toast('Failed to update student');
+    });
+});
+
+/* ---------------------------------------------------------------------
+   ATTENDANCE FREEZE  (per class, per date — keyed in localStorage)
+   - Manual toggle any time before 10 PM.
+   - Auto hard-locks the moment the clock hits 10 PM; irreversible after that.
+   --------------------------------------------------------------------- */
+const LOCK_HOUR = 22; // 10:00 PM
+
+function isPastLockHour(){
+  return new Date().getHours() >= LOCK_HOUR;
+}
+
+function lockStorageKey(dateStr){
+  return `attLock_${state.activeClassId}_${dateStr}`;
+}
+
+function getLockRecord(dateStr){
+  try{
+    const raw = localStorage.getItem(lockStorageKey(dateStr));
+    return raw ? JSON.parse(raw) : { locked:false, hard:false };
+  } catch(e){ return { locked:false, hard:false }; }
+}
+
+function setLockRecord(dateStr, record){
+  try{ localStorage.setItem(lockStorageKey(dateStr), JSON.stringify(record)); } catch(e){}
+}
+
+/* Re-evaluates the lock for state.markDate. Call this any time the Mark
+   tab loads or the date being viewed changes. */
+function applyAttendanceLockUI(){
+  const btn = document.getElementById('btn-lock-attendance');
+  if(!btn) return;
+  const dateStr = state.markDate;
+  const isToday = dateStr === todayStr();
+
+  // The freeze only governs today's attendance — hide it entirely for
+  // past-date editing (calendar → Edit) or read-only principal views.
+  if(!isToday || state.readOnly){
+    btn.classList.add('hidden');
+    setMarkInputsDisabled(false);
+    return;
+  }
+  btn.classList.remove('hidden');
+
+  let rec = getLockRecord(dateStr);
+
+  // Crossing 10 PM always wins, even if it was manually unlocked earlier.
+  if(isPastLockHour() && !rec.hard){
+    rec = { locked:true, hard:true };
+    setLockRecord(dateStr, rec);
+  }
+
+  if(rec.hard){
+    btn.textContent = 'Attendance Locked 🔒';
+    btn.disabled = true;
+    btn.classList.add('btn-locked');
+    setMarkInputsDisabled(true);
+  } else if(rec.locked){
+    btn.textContent = 'Unlock Attendance';
+    btn.disabled = false;
+    btn.classList.remove('btn-locked');
+    setMarkInputsDisabled(true);
+  } else {
+    btn.textContent = '🔓 Lock Attendance';
+    btn.disabled = false;
+    btn.classList.remove('btn-locked');
+    setMarkInputsDisabled(false);
+  }
+}
+
+function setMarkInputsDisabled(disabled){
+  document.getElementById('mark-list').classList.toggle('marks-frozen', disabled);
+  document.getElementById('btn-mark-all-present').disabled = disabled;
+  document.getElementById('btn-mark-all-absent').disabled = disabled;
+  const submitBtn = document.getElementById('btn-submit-attendance');
+  if(submitBtn) submitBtn.disabled = disabled;
+}
+
+document.getElementById('btn-lock-attendance').addEventListener('click', ()=>{
+  if(state.readOnly) return;
+  const dateStr = state.markDate;
+  if(dateStr !== todayStr()) return;
+
+  const rec = getLockRecord(dateStr);
+  if(rec.hard) return; // safety net — button is already disabled at this point
+
+  if(isPastLockHour()){
+    // Clock crossed 10 PM between renders — hard-lock rather than toggle.
+    setLockRecord(dateStr, { locked:true, hard:true });
+  } else {
+    setLockRecord(dateStr, { locked: !rec.locked, hard:false });
+  }
+  applyAttendanceLockUI();
+});
+
+/* ---------------------------------------------------------------------
+   MARK ATTENDANCE
+   --------------------------------------------------------------------- */
+function loadAttendanceForDate(dateStr, silentIfMissing){
+  state.markDate = dateStr;
+  document.getElementById('mark-date-label').textContent = dateStr;
+  db.collection('classes').doc(state.activeClassId).collection('attendance_records').doc(dateStr).get()
+    .then(doc=>{
+      state.markSelections = {};
+      if(doc.exists){
+        const data = doc.data();
+        state.students.forEach(s=>{
+          state.markSelections[s.id] = (data.absentStudents||[]).includes(s.rollNumber) ? 'absent' : 'present';
+        });
+        document.getElementById('mark-topic-input').value = data.topic || '';
+      } else {
+        state.students.forEach(s=> state.markSelections[s.id] = 'absent');
+        document.getElementById('mark-topic-input').value = '';
+      }
+      renderMarkList();
+      applyAttendanceLockUI();
+    });
+}
+
+function renderMarkList(){
+  const list = document.getElementById('mark-list');
+  const empty = document.getElementById('mark-empty');
+  const noMatch = document.getElementById('mark-no-match');
+  const searchField = document.getElementById('mark-search-field');
+  list.innerHTML = '';
+  if(state.students.length===0){
+    empty.classList.remove('hidden');
+    noMatch.classList.add('hidden');
+    if(searchField) searchField.classList.add('hidden');
+    document.getElementById('mark-count').textContent='';
+    return;
+  }
+  empty.classList.add('hidden');
+  if(searchField) searchField.classList.remove('hidden');
+
+  const query = (state.markSearchQuery||'').trim().toLowerCase();
+  const visibleStudents = query
+    ? state.students.filter(s=>
+        String(s.name||'').toLowerCase().includes(query) ||
+        String(s.rollNumber||'').toLowerCase().includes(query))
+    : state.students;
+
+  noMatch.classList.toggle('hidden', visibleStudents.length > 0);
+
+  // Present/absent counts always reflect the full roster, not just the
+  // filtered/visible subset — searching only narrows what's shown to tap.
+  let presentCount = 0;
+  state.students.forEach(s=>{ if((state.markSelections[s.id]||'absent')==='present') presentCount++; });
+  document.getElementById('mark-count').textContent = `${presentCount} present · ${state.students.length-presentCount} absent`;
+
+  visibleStudents.forEach(s=>{
+    const status = state.markSelections[s.id] || 'absent';
+    const row = document.createElement('div');
+    row.className = 'student-row' + (status==='absent' ? ' absent' : '');
+    row.innerHTML = `
+      <div class="ring"><div class="init" style="font-size:14px;">${escapeHtml(initialsOf(s.name))}</div></div>
+      <div class="student-meta">
+        <p class="name">${escapeHtml(s.name)}</p>
+        <p class="sub mono">${escapeHtml(s.rollNumber)}</p>
+      </div>
+      <span class="status-pill">${status==='present'?'Present':'Absent'}</span>`;
+    row.addEventListener('click', ()=>{
+      if(document.getElementById('mark-list').classList.contains('marks-frozen')) return;
+      state.markSelections[s.id] = status==='present' ? 'absent' : 'present';
+      renderMarkList();
+    });
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('mark-search').addEventListener('input', (e)=>{
+  state.markSearchQuery = e.target.value;
+  renderMarkList();
+});
+
+function initialsOf(name){
+  return (name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+}
+
+document.getElementById('btn-mark-all-present').addEventListener('click', ()=>{
+  if(state.readOnly) return;
+  state.students.forEach(s=> state.markSelections[s.id] = 'present');
+  renderMarkList();
+});
+document.getElementById('btn-mark-all-absent').addEventListener('click', ()=>{
+  if(state.readOnly) return;
+  state.students.forEach(s=> state.markSelections[s.id] = 'absent');
+  renderMarkList();
+});
+
+document.getElementById('btn-submit-attendance').addEventListener('click', submitAttendance);
+
+function submitAttendance(){
+  if(state.readOnly){ toast('Read-only view — cannot mark attendance'); return; }
+  if(state.markDate !== todayStr()){ toast('Attendance for past dates can no longer be edited'); return; }
+  if(getLockRecord(state.markDate).locked){
+    toast('Attendance is locked — unlock to make changes');
+    return;
+  }
+  if(state.students.length===0){ toast('Add students to the class first'); return; }
+  const btn = document.getElementById('btn-submit-attendance');
+  setBtnLoading(btn, true);
+
+  const present = [], absent = [];
+  state.students.forEach(s=>{
+    if((state.markSelections[s.id]||'absent')==='present') present.push(s.rollNumber);
+    else absent.push(s.rollNumber);
+  });
+  const topic = document.getElementById('mark-topic-input').value.trim();
+
+  const classRef = db.collection('classes').doc(state.activeClassId);
+  const dateRef = classRef.collection('attendance_records').doc(state.markDate);
+
+  db.runTransaction(async (tx)=>{
+    // --- ALL READS FIRST (Firestore transactions require every read
+    //     to complete before any write is issued) ---
+    const existing = await tx.get(dateRef);
+    const clsSnap = await tx.get(classRef);
+
+    const wasLoggedBefore = existing.exists;
+    const prevAbsent = wasLoggedBefore ? (existing.data().absentStudents||[]) : null;
+
+    // --- THEN ALL WRITES ---
+    tx.set(dateRef, { date: state.markDate, presentStudents: present, absentStudents: absent, topic }, {merge:true});
+
+    // Adjust totalLectures only on first submission for this date
+    let newTotal = clsSnap.data().totalLectures || 0;
+    if(!wasLoggedBefore){
+      newTotal = newTotal + 1;
+      tx.update(classRef, { totalLectures: newTotal });
+    }
+
+    // Update each student's lecturesAttended
+    const studentUpdates = [];
+    for(const s of state.students){
+      const wasPresentBefore = wasLoggedBefore ? !prevAbsent.includes(s.rollNumber) : null;
+      const isPresentNow = present.includes(s.rollNumber);
+      let delta = 0;
+      if(!wasLoggedBefore){
+        delta = isPresentNow ? 1 : 0;
+      } else if(wasPresentBefore !== isPresentNow){
+        delta = isPresentNow ? 1 : -1;
+      }
+      const newAttended = (s.lecturesAttended||0) + delta;
+      if(delta !== 0){
+        const stuRef = classRef.collection('students').doc(s.id);
+        tx.update(stuRef, { lecturesAttended: firebase.firestore.FieldValue.increment(delta) });
+      }
+      studentUpdates.push({ rollNumber: s.rollNumber, name: s.name, contact: s.contact, lecturesAttended: newAttended });
+    }
+    return { newTotal, studentUpdates };
+  }).then((result)=>{
+    setBtnLoading(btn, false, 'Submit Attendance');
+    toast('Attendance submitted');
+    loadMonthAttendance();
+    const cls = state.classes.find(c=>c.id===state.activeClassId);
+    writePublicViewBatch(cls ? { ...cls, totalLectures: result.newTotal } : null, result.studentUpdates);
+  }).catch(err=>{
+    setBtnLoading(btn, false, 'Submit Attendance');
+    toast('Submission failed — try again');
+    console.error(err);
+  });
+}
+
+/* ---------------------------------------------------------------------
+   CALENDAR
+   --------------------------------------------------------------------- */
+function loadMonthAttendance(){
+  db.collection('classes').doc(state.activeClassId).collection('attendance_records')
+    .get().then(snap=>{
+      state.attendanceCache = {};
+      snap.forEach(doc=> state.attendanceCache[doc.id] = doc.data());
+      renderCalendar();
+      updateTopicSuggestions();
+    });
+}
+
+function updateTopicSuggestions(){
+  const topics = new Set();
+  Object.values(state.attendanceCache).forEach(rec=>{
+    if(rec.topic) topics.add(rec.topic);
+  });
+  const datalist = document.getElementById('mark-topic-suggestions');
+  datalist.innerHTML = Array.from(topics).sort().map(t=> `<option value="${escapeHtml(t)}"></option>`).join('');
+}
+
+document.getElementById('cal-prev').addEventListener('click', ()=>{
+  state.calMonth--; if(state.calMonth<0){ state.calMonth=11; state.calYear--; }
+  renderCalendar();
+});
+document.getElementById('cal-next').addEventListener('click', ()=>{
+  state.calMonth++; if(state.calMonth>11){ state.calMonth=0; state.calYear++; }
+  renderCalendar();
+});
+
+function renderCalendar(){
+  const grid = document.getElementById('cal-grid');
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('cal-month-label').textContent = `${monthNames[state.calMonth]} ${state.calYear}`;
+  grid.innerHTML = '';
+  ['S','M','T','W','T','F','S'].forEach(d=>{
+    const el = document.createElement('div'); el.className='cal-dow'; el.textContent=d; grid.appendChild(el);
+  });
+  const firstDay = new Date(state.calYear, state.calMonth, 1).getDay();
+  const daysInMonth = new Date(state.calYear, state.calMonth+1, 0).getDate();
+  const todayS = todayStr();
+
+  for(let i=0;i<firstDay;i++){
+    const b = document.createElement('div'); b.className='cal-day blank'; grid.appendChild(b);
+  }
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = `${state.calYear}-${String(state.calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const btn = document.createElement('button');
+    btn.className = 'cal-day';
+    if(dateStr===todayS) btn.classList.add('today');
+    if(state.attendanceCache[dateStr]) btn.classList.add('has-record');
+    if(state.calSelectedDate===dateStr) btn.classList.add('selected');
+    btn.innerHTML = `<span>${d}</span>${state.attendanceCache[dateStr] ? '<span class="dot"></span>' : ''}`;
+    btn.addEventListener('click', ()=> selectCalendarDay(dateStr));
+    grid.appendChild(btn);
+  }
+}
+
+function selectCalendarDay(dateStr){
+  state.calSelectedDate = dateStr;
+  renderCalendar();
+  document.getElementById('btn-edit-day').classList.toggle('hidden', state.readOnly || dateStr !== todayStr());
+  const rec = state.attendanceCache[dateStr];
+  const detail = document.getElementById('day-detail');
+  detail.classList.remove('hidden');
+  document.getElementById('day-detail-title').textContent = dateStr;
+  const topicEl = document.getElementById('day-detail-topic');
+
+  if(!rec){
+    topicEl.classList.add('hidden');
+    document.getElementById('day-present-count').textContent = '—';
+    document.getElementById('day-absent-count').textContent = '—';
+    document.getElementById('day-detail-list').innerHTML = '<p style="font-size:13px; color:var(--slate);">No attendance was logged on this date.</p>';
+    return;
+  }
+  if(rec.topic){
+    topicEl.textContent = `📘 ${rec.topic}`;
+    topicEl.classList.remove('hidden');
+  } else {
+    topicEl.classList.add('hidden');
+  }
+  document.getElementById('day-present-count').textContent = (rec.presentStudents||[]).length;
+  document.getElementById('day-absent-count').textContent = (rec.absentStudents||[]).length;
+
+  const listEl = document.getElementById('day-detail-list');
+  listEl.innerHTML = '';
+  state.students.forEach(s=>{
+    const wasAbsent = (rec.absentStudents||[]).includes(s.rollNumber);
+    const row = document.createElement('div');
+    row.className = 'student-row' + (wasAbsent ? ' absent' : '');
+    row.style.cursor='default';
+    row.innerHTML = `
+      <div class="ring"><div class="init" style="font-size:14px;">${escapeHtml(initialsOf(s.name))}</div></div>
+      <div class="student-meta">
+        <p class="name">${escapeHtml(s.name)}</p>
+        <p class="sub mono">${escapeHtml(s.rollNumber)}</p>
+      </div>
+      <span class="status-pill">${wasAbsent?'Absent':'Present'}</span>`;
+    listEl.appendChild(row);
+  });
+}
+
+document.getElementById('btn-edit-day').addEventListener('click', ()=>{
+  if(!state.calSelectedDate) return;
+  if(state.calSelectedDate !== todayStr()){ toast("Attendance for past dates can no longer be edited — today's is only editable until 10 PM"); return; }
+  switchTab('mark');
+  loadAttendanceForDate(state.calSelectedDate);
+  toast('Editing ' + state.calSelectedDate);
+});
+
+/* ---------------------------------------------------------------------
+   MONTHLY REPORT (preview + print/PDF)
+   --------------------------------------------------------------------- */
+const REPORT_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+document.getElementById('report-prev').addEventListener('click', ()=>{
+  state.reportMonth--; if(state.reportMonth<0){ state.reportMonth=11; state.reportYear--; }
+  renderReportTab();
+});
+document.getElementById('report-next').addEventListener('click', ()=>{
+  state.reportMonth++; if(state.reportMonth>11){ state.reportMonth=0; state.reportYear++; }
+  renderReportTab();
+});
+
+document.getElementById('btn-toggle-range').addEventListener('click', ()=>{
+  document.getElementById('report-range-fields').classList.remove('hidden');
+  document.getElementById('report-month-nav').classList.add('hidden');
+  document.getElementById('btn-toggle-range').classList.add('hidden');
+  // Prefill the pickers with the current month's bounds so Apply works with one tap
+  if(!document.getElementById('report-range-from').value){
+    const y = state.reportYear, m = state.reportMonth;
+    const lastDay = new Date(y, m+1, 0).getDate();
+    document.getElementById('report-range-from').value = `${y}-${String(m+1).padStart(2,'0')}-01`;
+    document.getElementById('report-range-to').value = `${y}-${String(m+1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+  }
+});
+document.getElementById('btn-back-to-month').addEventListener('click', ()=>{
+  state.reportMode = 'month';
+  document.getElementById('report-range-fields').classList.add('hidden');
+  document.getElementById('report-month-nav').classList.remove('hidden');
+  document.getElementById('btn-toggle-range').classList.remove('hidden');
+  renderReportTab();
+});
+document.getElementById('btn-apply-range').addEventListener('click', ()=>{
+  const from = document.getElementById('report-range-from').value;
+  const to = document.getElementById('report-range-to').value;
+  if(!from || !to){ toast('Pick both a start and end date'); return; }
+  if(from > to){ toast('Start date must be before end date'); return; }
+  state.reportMode = 'custom';
+  state.reportRangeStart = from;
+  state.reportRangeEnd = to;
+  renderReportTab();
+});
+
+// Every attendance_records doc for this class lives in state.attendanceCache
+// keyed by "YYYY-MM-DD" (loaded in full by loadMonthAttendance). Entries
+// always carry both day and month so date headers stay unambiguous even
+// when a custom range crosses a month boundary.
+function buildReportEntries(dateStrs){
+  return dateStrs.slice().sort().map(d=> ({
+    dateStr: d,
+    day: Number(d.slice(8,10)),
+    month: Number(d.slice(5,7)),
+    data: state.attendanceCache[d]
+  }));
+}
+function getReportEntries(year, month){
+  const prefix = `${year}-${String(month+1).padStart(2,'0')}-`;
+  return buildReportEntries(Object.keys(state.attendanceCache).filter(d=> d.startsWith(prefix)));
+}
+function getReportEntriesInRange(startStr, endStr){
+  return buildReportEntries(Object.keys(state.attendanceCache).filter(d=> d>=startStr && d<=endStr));
+}
+function getActiveReportEntries(){
+  return state.reportMode==='custom'
+    ? getReportEntriesInRange(state.reportRangeStart, state.reportRangeEnd)
+    : getReportEntries(state.reportYear, state.reportMonth);
+}
+function formatDateShort(dateStr){
+  const [y,m,d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function renderReportTab(){
+  document.getElementById('report-month-label').textContent = state.reportMode==='custom'
+    ? `${formatDateShort(state.reportRangeStart)} – ${formatDateShort(state.reportRangeEnd)}`
+    : `${REPORT_MONTH_NAMES[state.reportMonth]} ${state.reportYear}`;
+  const entries = getActiveReportEntries();
+  const printBtn = document.getElementById('btn-print-report');
+  const hasData = entries.length > 0 && state.students.length > 0;
+
+  document.getElementById('report-table-wrap').classList.toggle('hidden', !hasData);
+  document.getElementById('report-empty').classList.toggle('hidden', hasData);
+  printBtn.disabled = !hasData;
+
+  document.getElementById('report-lectures-count').textContent = entries.length;
+  document.getElementById('report-students-count').textContent = state.students.length;
+
+  if(!hasData){
+    document.getElementById('report-avg-pct').textContent = '0%';
+    document.getElementById('report-table').innerHTML = '';
+    return;
+  }
+
+  const rows = state.students.map(s=>{
+    let present = 0;
+    const cells = entries.map(e=>{
+      const wasPresent = (e.data.presentStudents||[]).includes(s.rollNumber);
+      const wasAbsent = (e.data.absentStudents||[]).includes(s.rollNumber);
+      if(wasPresent) present++;
+      const mark = wasPresent ? 'P' : (wasAbsent ? 'A' : '—');
+      const cls = wasPresent ? 'present' : (wasAbsent ? 'absent' : '');
+      return `<td class="${cls}">${mark}</td>`;
+    }).join('');
+    const pct = Math.round((present/entries.length)*100);
+    return { s, present, pct, cells };
+  });
+
+  const avgPct = Math.round(rows.reduce((sum,r)=> sum+r.pct, 0) / rows.length);
+  document.getElementById('report-avg-pct').textContent = `${avgPct}%`;
+
+  const headCells = entries.map(e=> `<th>${state.reportMode==='custom' ? e.day+'/'+e.month : e.day}</th>`).join('');
+  const bodyRows = rows.map(r=> `
+    <tr>
+      <td>${escapeHtml(r.s.name)}</td>
+      <td class="roll">${escapeHtml(r.s.rollNumber)}</td>
+      ${r.cells}
+      <td class="pct">${r.present}/${entries.length}</td>
+      <td class="pct">${r.pct}%</td>
+    </tr>`).join('');
+
+  document.getElementById('report-table').innerHTML = `
+    <thead><tr><th>Name</th><th>Roll No.</th>${headCells}<th>Present</th><th>%</th></tr></thead>
+    <tbody>${bodyRows}</tbody>`;
+}
+
+document.getElementById('btn-print-report').addEventListener('click', generatePrintReport);
+
+function generatePrintReport(){
+  const entries = getActiveReportEntries();
+  if(entries.length===0 || state.students.length===0){ toast('No attendance to print for the selected period'); return; }
+
+  const cls = state.readOnly
+    ? state.allClasses.find(c=>c.id===state.activeClassId)
+    : state.classes.find(c=>c.id===state.activeClassId);
+  const className = cls ? cls.className : 'Class';
+  const courseLine = cls ? [cls.courseName, cls.departmentName].filter(Boolean).join(' · ') : '';
+  const preparedBy = state.readOnly && cls ? professorLabel(cls.professorId) : (state.displayName ? `Prof. ${state.displayName}` : '');
+  const periodLabel = state.reportMode==='custom'
+    ? `${formatDateShort(state.reportRangeStart)} – ${formatDateShort(state.reportRangeEnd)}`
+    : `${REPORT_MONTH_NAMES[state.reportMonth]} ${state.reportYear}`;
+
+  const rows = state.students.map(s=>{
+    let present = 0;
+    const cells = entries.map(e=>{
+      const wasPresent = (e.data.presentStudents||[]).includes(s.rollNumber);
+      const wasAbsent = (e.data.absentStudents||[]).includes(s.rollNumber);
+      if(wasPresent) present++;
+      return `<td>${wasPresent ? 'P' : (wasAbsent ? 'A' : '—')}</td>`;
+    }).join('');
+    const pct = Math.round((present/entries.length)*100);
+    return `<tr><td>${escapeHtml(s.rollNumber)}</td><td>${escapeHtml(s.name)}</td>${cells}<td>${present}/${entries.length}</td><td>${pct}%</td></tr>`;
+  }).join('');
+
+  const headCells = entries.map(e=> `<th>${state.reportMode==='custom' ? e.day+'/'+e.month : e.day}</th>`).join('');
+
+  const topicsInPeriod = Array.from(new Set(entries.map(e=> e.data.topic).filter(Boolean)));
+  const syllabusLine = topicsInPeriod.length
+    ? `<p class="pr-syllabus"><strong>Topics Covered:</strong> ${topicsInPeriod.map(t=>escapeHtml(t)).join(', ')}</p>`
+    : '';
+
+  document.getElementById('print-report').innerHTML = `
+    <h2>Govt. V.Y.T. P.G. Autonomous College, Durg</h2>
+    <p class="pr-sub">${state.reportMode==='custom' ? 'Attendance Register' : 'Monthly Attendance Register'} — ${escapeHtml(className)}${courseLine ? ' · ' + escapeHtml(courseLine) : ''}</p>
+    <p class="pr-meta">
+      <span>${periodLabel}</span>
+      <span>${entries.length} lecture(s) held</span>
+      <span>${preparedBy ? 'Prepared by: ' + escapeHtml(preparedBy) : ''}</span>
+    </p>
+    <table>
+      <thead><tr><th>Roll No.</th><th>Name</th>${headCells}<th>Present</th><th>%</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${syllabusLine}
+    <div class="pr-sign">
+      <span>Class Teacher's Signature: ______________________</span>
+      <span>HOD's Signature: ______________________</span>
+    </div>`;
+
+  window.print();
+}
+
+/* ---------------------------------------------------------------------
+   PWA SERVICE WORKER REGISTRATION
+   --------------------------------------------------------------------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/sw.js').catch(err=>console.error('SW registration failed', err));
+  });
+}
+
+</script>
+</body>
+</html>

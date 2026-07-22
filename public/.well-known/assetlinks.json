@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.web.vytpgdurg.twa",
+        "sha256_cert_fingerprints": ["BF:6C:CB:E6:3C:87:AB:DC:C4:1D:3A:FE:75:60:AE:BF:39:52:95:B8:49:53:D8:49:DF:8A:82:73:2D:E1:AC:B2"]
+      }
+    }]
