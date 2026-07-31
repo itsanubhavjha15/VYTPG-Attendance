@@ -8,12 +8,30 @@ service cloud.firestore {
       return request.auth != null &&
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+    // True only for accounts listed in the creators collection — a superadmin
+    // layer above the principal. Granted manually in the Firebase Console
+    // (never from the app). Wherever isAdmin() unlocks something below,
+    // isCreator() unlocks the same thing, so a creator can do everything a
+    // principal can, plus edit any class directly (not just view it).
+    function isCreator() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/creators/$(request.auth.uid));
+    }
     // True only if the caller is the HoD of the given department. Used to scope
     // masterRosters writes to exactly the one department a given HoD manages.
     function isHodOf(deptId) {
       return request.auth != null &&
         exists(/databases/$(database)/documents/hods/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/hods/$(request.auth.uid)).data.departmentId == deptId;
+    }
+    // True if the caller is the owning professor of a class OR is listed in
+    // that class's collaboratorIds array. Takes the class doc's data (not the
+    // classId) so it can be reused both on the class doc itself (resource.data)
+    // and, via get(), on its subcollections.
+    function isOwnerOrCollaborator(classData) {
+      return request.auth != null &&
+        (classData.professorId == request.auth.uid ||
+         (classData.collaboratorIds != null && request.auth.uid in classData.collaboratorIds));
     }
     // Each professor (or the principal, if they choose to set one) can read/write
     // only their own admin-flag document — this lets the app check "am I an admin?"
@@ -22,40 +40,59 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false; // grant admin status only from the Firebase Console, never from the app
     }
-    // Professors manage their own display name; the principal can read everyone's
-    // so classes can be labeled with a human name instead of a raw user ID.
+    // Same pattern as admins/{uid} above, for the creator superadmin flag —
+    // a caller can only ever read their own doc, and it can never be written
+    // from the app. Grant it by hand in the Firebase Console: Firestore →
+    // create collection "creators" → document ID = that person's Auth UID.
+    match /creators/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // grant creator status only from the Firebase Console, never from the app
+    }
+    // Professors manage their own display name; the principal (and a creator)
+    // can read/write everyone's so classes can be labeled with a human name
+    // instead of a raw user ID, and so the Add/Edit Professor screen works.
     match /professors/{profId} {
-      allow read: if request.auth != null && (request.auth.uid == profId || isAdmin());
-      allow write: if request.auth != null && request.auth.uid == profId;
+      allow read: if request.auth != null && (request.auth.uid == profId || isAdmin() || isCreator());
+      allow write: if request.auth != null && (request.auth.uid == profId || isAdmin() || isCreator());
+    }
+
+    // Lightweight public directory of display names only — lets any signed-in
+    // professor browse/list colleagues (e.g. the "share class" collaborator
+    // picker) without exposing email/phone from the full professors/{uid} doc,
+    // which stays locked down to self + admin/creator. The app keeps this in
+    // sync whenever a professor's displayName is set/edited/removed.
+    match /professorNames/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (request.auth.uid == uid || isAdmin() || isCreator());
     }
 
     // Departments & Courses catalog — every logged-in professor can read (needed
     // to populate the dropdowns and cross-professor "existing classes" chips when
-    // adding a class), but only the principal can add/edit/delete entries.
+    // adding a class), but only the principal or a creator can add/edit/delete entries.
     match /departments/{deptId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && isAdmin();
+      allow write: if request.auth != null && (isAdmin() || isCreator());
     }
     match /courses/{courseId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && isAdmin();
+      allow write: if request.auth != null && (isAdmin() || isCreator());
     }
 
     // HoD assignments — a professor (or anyone) can read only their own doc, to
-    // check "am I an HoD, and of which department". The principal can read all
-    // (to build the Manage HoDs screen) and is the only one who can write —
-    // assignment/removal always goes through the principal's app UI.
+    // check "am I an HoD, and of which department". The principal and a
+    // creator can read all (to build the Manage HoDs screen) and are the only
+    // ones who can write — assignment/removal always goes through that app UI.
     match /hods/{uid} {
-      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
-      allow write: if request.auth != null && isAdmin();
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin() || isCreator());
+      allow write: if request.auth != null && (isAdmin() || isCreator());
     }
 
     // Master rosters — one doc per (department_course_section) triple, holding
     // the full student list a Section Incharge (HoD) uploaded. Any logged-in
     // professor can read (needed to fetch it into their own class — rosters
     // are shared department-wide across every course for a matching section),
-    // but only the Section Incharge of that exact department, or the
-    // principal, can create/update/delete it. The one exception is
+    // but only the Section Incharge of that exact department, the principal,
+    // or a creator can create/update/delete it. The one exception is
     // "sectionKey": any authenticated professor may add/fix that single field
     // (and nothing else) — the app backfills it on older roster docs the
     // first time they're fetched, so department-wide lookups find them
@@ -63,39 +100,89 @@ service cloud.firestore {
     match /masterRosters/{key} {
       allow read: if request.auth != null;
       allow create: if request.auth != null &&
-        (isAdmin() || isHodOf(request.resource.data.departmentId));
+        (isAdmin() || isCreator() || isHodOf(request.resource.data.departmentId));
       allow update: if request.auth != null &&
-        (isAdmin() || isHodOf(resource.data.departmentId) ||
+        (isAdmin() || isCreator() || isHodOf(resource.data.departmentId) ||
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sectionKey']));
       allow delete: if request.auth != null &&
-        (isAdmin() || isHodOf(resource.data.departmentId));
+        (isAdmin() || isCreator() || isHodOf(resource.data.departmentId));
+    }
+
+    // Audit log — a record of admin actions (deletions, professor account
+    // changes, Section Incharge assignments), written by the app whenever
+    // such an action happens. Any signed-in user can create an entry for an
+    // action THEY performed (so a professor deleting their own class still
+    // gets logged, not just principal/creator actions) — but only the
+    // principal or a creator can read the log, and entries can never be
+    // edited or deleted once written, so it's a genuine trail.
+    match /auditLog/{id} {
+      allow read: if request.auth != null && (isAdmin() || isCreator());
+      allow create: if request.auth != null &&
+        request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Deletion backups — a full snapshot of a class (its own doc + students +
+    // attendance_records) taken automatically right before it's deleted, so
+    // a deleted class can be brought back if the deletion was a mistake.
+    // Anyone who can legitimately delete a class (its owner, principal, or
+    // creator) can also write its backup — the backup write always happens
+    // as part of that same delete action, never on its own.
+    //   Restore tiering:
+    //   - The professor who deleted it (deletedBy) can read/restore/delete
+    //     their OWN backup for 7 days after deletion — self-service, no
+    //     admin needed, for the common "oops" case.
+    //   - After 7 days, only the principal/creator can read or delete it
+    //     (via the Audit Log's Restore button) — later restores go through
+    //     an admin on purpose, since the deleting professor no longer gets
+    //     an easy one-tap undo.
+    //   - Any signed-in professor may delete an already-EXPIRED backup
+    //     (expiresAt has passed) regardless of who created it — this is
+    //     what lets cleanupExpiredBackups() (run client-side on login,
+    //     standing in for Firestore TTL, which needs the paid Blaze plan)
+    //     sweep expired backups no matter who happens to be logged in.
+    function ownsRecentBackup() {
+      return resource.data.deletedBy == request.auth.uid &&
+        resource.data.deletedAt is timestamp &&
+        resource.data.deletedAt > request.time - duration.value(7, 'd');
+    }
+    match /deletedClassBackups/{backupId} {
+      allow read: if request.auth != null && (isAdmin() || isCreator() || ownsRecentBackup());
+      allow create: if request.auth != null &&
+        request.resource.data.deletedBy == request.auth.uid;
+      allow update: if false;
+      allow delete: if request.auth != null &&
+        (isAdmin() || isCreator() || ownsRecentBackup() ||
+         (resource.data.expiresAt is timestamp && resource.data.expiresAt <= request.time));
     }
 
     match /classes/{classId} {
       // Any logged-in professor can read class metadata (name, department, course,
       // lecture count) — needed so the "existing classes under this course" picker
       // works across professors. Student rosters and attendance records below
-      // remain fully restricted to the owning professor (or the principal).
+      // remain fully restricted to the owning professor, a collaborator, the
+      // principal, or a creator.
       allow read: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.professorId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.professorId == request.auth.uid;
+      // Collaborators can edit the class (e.g. lecture count, syllabus meta)
+      // just like the owner; the principal and a creator can too.
+      allow update: if isOwnerOrCollaborator(resource.data) || isAdmin() || isCreator();
+      // Only the owning professor, the principal, or a creator can delete
+      // the class outright.
+      allow delete: if request.auth != null &&
+        (resource.data.professorId == request.auth.uid || isAdmin() || isCreator());
+      allow create: if request.auth != null &&
+        (request.resource.data.professorId == request.auth.uid || isAdmin() || isCreator());
       match /students/{studentId} {
-        allow read: if request.auth != null &&
-          (get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid || isAdmin());
-        allow write: if request.auth != null &&
-          get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid;
+        allow read, write: if isOwnerOrCollaborator(
+          get(/databases/$(database)/documents/classes/$(classId)).data) || isAdmin() || isCreator();
       }
       match /attendance_records/{dateStr} {
-        allow read: if request.auth != null &&
-          (get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid || isAdmin());
-        allow write: if request.auth != null &&
-          get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid;
+        allow read, write: if isOwnerOrCollaborator(
+          get(/databases/$(database)/documents/classes/$(classId)).data) || isAdmin() || isCreator();
       }
       match /syllabus/{topicId} {
-        allow read: if request.auth != null &&
-          (get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid || isAdmin());
-        allow write: if request.auth != null &&
-          get(/databases/$(database)/documents/classes/$(classId)).data.professorId == request.auth.uid;
+        allow read, write: if isOwnerOrCollaborator(
+          get(/databases/$(database)/documents/classes/$(classId)).data) || isAdmin() || isCreator();
       }
     }
 
@@ -111,6 +198,25 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
       allow write: if request.auth != null;
+    }
+
+    // College notice board — announcements any signed-in professor can post,
+    // readable by everyone (including signed-out visitors on the public home
+    // screen). A professor may edit/delete only their own post; the principal
+    // and a creator can moderate (delete) any of them. The ackCount-only
+    // clause lets any visitor — including signed-out students — tap "Got it"
+    // and bump the counter by exactly one, without being able to touch any
+    // other field.
+    match /announcements/{id} {
+      allow read: if true;
+      allow create: if request.auth != null &&
+        request.resource.data.authorUid == request.auth.uid;
+      allow update: if
+        (request.auth != null && (resource.data.authorUid == request.auth.uid || isAdmin() || isCreator())) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ackCount']) &&
+         request.resource.data.ackCount == (resource.data.ackCount == null ? 0 : resource.data.ackCount) + 1);
+      allow delete: if request.auth != null &&
+        (resource.data.authorUid == request.auth.uid || isAdmin() || isCreator());
     }
   }
 }
