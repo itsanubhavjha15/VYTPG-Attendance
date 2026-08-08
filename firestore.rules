@@ -108,54 +108,6 @@ service cloud.firestore {
         (isAdmin() || isCreator() || isHodOf(resource.data.departmentId));
     }
 
-    // Audit log — a record of admin actions (deletions, professor account
-    // changes, Section Incharge assignments), written by the app whenever
-    // such an action happens. Any signed-in user can create an entry for an
-    // action THEY performed (so a professor deleting their own class still
-    // gets logged, not just principal/creator actions) — but only the
-    // principal or a creator can read the log, and entries can never be
-    // edited or deleted once written, so it's a genuine trail.
-    match /auditLog/{id} {
-      allow read: if request.auth != null && (isAdmin() || isCreator());
-      allow create: if request.auth != null &&
-        request.resource.data.actorUid == request.auth.uid;
-      allow update, delete: if false;
-    }
-
-    // Deletion backups — a full snapshot of a class (its own doc + students +
-    // attendance_records) taken automatically right before it's deleted, so
-    // a deleted class can be brought back if the deletion was a mistake.
-    // Anyone who can legitimately delete a class (its owner, principal, or
-    // creator) can also write its backup — the backup write always happens
-    // as part of that same delete action, never on its own.
-    //   Restore tiering:
-    //   - The professor who deleted it (deletedBy) can read/restore/delete
-    //     their OWN backup for 7 days after deletion — self-service, no
-    //     admin needed, for the common "oops" case.
-    //   - After 7 days, only the principal/creator can read or delete it
-    //     (via the Audit Log's Restore button) — later restores go through
-    //     an admin on purpose, since the deleting professor no longer gets
-    //     an easy one-tap undo.
-    //   - Any signed-in professor may delete an already-EXPIRED backup
-    //     (expiresAt has passed) regardless of who created it — this is
-    //     what lets cleanupExpiredBackups() (run client-side on login,
-    //     standing in for Firestore TTL, which needs the paid Blaze plan)
-    //     sweep expired backups no matter who happens to be logged in.
-    function ownsRecentBackup() {
-      return resource.data.deletedBy == request.auth.uid &&
-        resource.data.deletedAt is timestamp &&
-        resource.data.deletedAt > request.time - duration.value(7, 'd');
-    }
-    match /deletedClassBackups/{backupId} {
-      allow read: if request.auth != null && (isAdmin() || isCreator() || ownsRecentBackup());
-      allow create: if request.auth != null &&
-        request.resource.data.deletedBy == request.auth.uid;
-      allow update: if false;
-      allow delete: if request.auth != null &&
-        (isAdmin() || isCreator() || ownsRecentBackup() ||
-         (resource.data.expiresAt is timestamp && resource.data.expiresAt <= request.time));
-    }
-
     match /classes/{classId} {
       // Any logged-in professor can read class metadata (name, department, course,
       // lecture count) — needed so the "existing classes under this course" picker
@@ -171,7 +123,7 @@ service cloud.firestore {
       allow delete: if request.auth != null &&
         (resource.data.professorId == request.auth.uid || isAdmin() || isCreator());
       allow create: if request.auth != null &&
-        (request.resource.data.professorId == request.auth.uid || isAdmin() || isCreator());
+        (request.resource.data.professorId == request.auth.uid || isCreator());
       match /students/{studentId} {
         allow read, write: if isOwnerOrCollaborator(
           get(/databases/$(database)/documents/classes/$(classId)).data) || isAdmin() || isCreator();
