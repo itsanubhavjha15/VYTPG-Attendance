@@ -33,6 +33,17 @@ service cloud.firestore {
         (classData.professorId == request.auth.uid ||
          (classData.collaboratorIds != null && request.auth.uid in classData.collaboratorIds));
     }
+    // Parses an attendance_records doc ID ("YYYY-MM-DD") into a Timestamp so
+    // the edit-window check below can compare it to request.time. Mirrors the
+    // app's own EDIT_WINDOW_DAYS = 7 logic (index.html), which today only
+    // enforces this client-side and can be bypassed by any direct API call.
+    function dateFromDocId(dateStr) {
+      let parts = dateStr.split('-');
+      return timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
+    }
+    function withinAttendanceEditWindow(dateStr) {
+      return request.time < dateFromDocId(dateStr) + duration.value(7, 'd');
+    }
     // Each professor (or the principal, if they choose to set one) can read/write
     // only their own admin-flag document — this lets the app check "am I an admin?"
     // without being able to read or grant anyone else's admin status.
@@ -103,9 +114,69 @@ service cloud.firestore {
         (isAdmin() || isCreator() || isHodOf(request.resource.data.departmentId));
       allow update: if request.auth != null &&
         (isAdmin() || isCreator() || isHodOf(resource.data.departmentId) ||
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sectionKey']));
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sectionKey']) &&
+          request.resource.data.sectionKey is string &&
+          request.resource.data.sectionKey.size() > 0));
       allow delete: if request.auth != null &&
         (isAdmin() || isCreator() || isHodOf(resource.data.departmentId));
+    }
+
+    // Audit log — a record of admin actions (deletions, professor account
+    // changes, Section Incharge assignments), written by the app whenever
+    // such an action happens. Any signed-in user can create an entry for an
+    // action THEY performed (so a professor deleting their own class still
+    // gets logged, not just principal/creator actions) — but only the
+    // principal or a creator can read the log, and entries can never be
+    // edited or deleted once written, so it's a genuine trail.
+    match /auditLog/{id} {
+      allow read: if request.auth != null && (isAdmin() || isCreator());
+      allow create: if request.auth != null &&
+        request.resource.data.actorUid == request.auth.uid &&
+        request.resource.data.action is string &&
+        request.resource.data.createdAt == request.time; // must be FieldValue.serverTimestamp(), not a client-supplied time
+      allow update, delete: if false;
+    }
+
+    // Deletion backups — a full snapshot of a class (its own doc + students +
+    // attendance_records) taken automatically right before it's deleted, so
+    // a deleted class can be brought back if the deletion was a mistake.
+    // Anyone who can legitimately delete a class (its owner, principal, or
+    // creator) can also write its backup — the backup write always happens
+    // as part of that same delete action, never on its own.
+    //   Restore tiering:
+    //   - The professor who deleted it (deletedBy) can read/restore/delete
+    //     their OWN backup for 7 days after deletion — self-service, no
+    //     admin needed, for the common "oops" case.
+    //   - After 7 days, only the principal/creator can read or delete it
+    //     (via the Audit Log's Restore button) — later restores go through
+    //     an admin on purpose, since the deleting professor no longer gets
+    //     an easy one-tap undo.
+    //   - Any signed-in professor may delete an already-EXPIRED backup
+    //     (expiresAt has passed) regardless of who created it — this is
+    //     what lets cleanupExpiredBackups() (run client-side on login,
+    //     standing in for Firestore TTL, which needs the paid Blaze plan)
+    //     sweep expired backups no matter who happens to be logged in.
+    function ownsRecentBackup() {
+      return resource.data.deletedBy == request.auth.uid &&
+        resource.data.deletedAt is timestamp &&
+        resource.data.deletedAt > request.time - duration.value(7, 'd');
+    }
+    match /deletedClassBackups/{backupId} {
+      allow read: if request.auth != null && (isAdmin() || isCreator() || ownsRecentBackup());
+      allow create: if request.auth != null &&
+        request.resource.data.deletedBy == request.auth.uid &&
+        request.resource.data.deletedAt == request.time && // must be FieldValue.serverTimestamp()
+        request.resource.data.expiresAt is timestamp &&
+        // The class must still exist at backup time (it's snapshotted right
+        // before deletion) and the caller must actually be allowed to delete
+        // it — otherwise anyone signed in could fabricate a backup doc with
+        // arbitrary made-up contents.
+        (get(/databases/$(database)/documents/classes/$(request.resource.data.originalClassId)).data.professorId == request.auth.uid ||
+         isAdmin() || isCreator());
+      allow update: if false;
+      allow delete: if request.auth != null &&
+        (isAdmin() || isCreator() || ownsRecentBackup() ||
+         (resource.data.expiresAt is timestamp && resource.data.expiresAt <= request.time));
     }
 
     match /classes/{classId} {
@@ -116,21 +187,53 @@ service cloud.firestore {
       // principal, or a creator.
       allow read: if request.auth != null;
       // Collaborators can edit the class (e.g. lecture count, syllabus meta)
-      // just like the owner; the principal and a creator can too.
-      allow update: if isOwnerOrCollaborator(resource.data) || isAdmin() || isCreator();
+      // just like the owner; the principal and a creator can too — but a
+      // plain collaborator may NOT change professorId (would let them steal
+      // ownership) or collaboratorIds (would let them add/remove sharing —
+      // the app's UI only exposes "Share Class" to the owner/creator, so the
+      // rule now matches that). Only the current owner, admin, or creator can
+      // touch either of those two fields.
+      allow update: if request.auth != null && (
+        isAdmin() || isCreator() ||
+        (isOwnerOrCollaborator(resource.data) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['professorId','collaboratorIds'])) ||
+        (resource.data.professorId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['collaboratorIds']))
+      );
       // Only the owning professor, the principal, or a creator can delete
       // the class outright.
       allow delete: if request.auth != null &&
         (resource.data.professorId == request.auth.uid || isAdmin() || isCreator());
+      // A professor can create a class for themselves; the principal or a
+      // creator can create one on behalf of any professor (used by the
+      // "Add Subject" flow opened from a professor's page in the Principal
+      // dashboard).
       allow create: if request.auth != null &&
-        (request.resource.data.professorId == request.auth.uid || isCreator());
+        (request.resource.data.professorId == request.auth.uid || isAdmin() || isCreator());
       match /students/{studentId} {
         allow read, write: if isOwnerOrCollaborator(
           get(/databases/$(database)/documents/classes/$(classId)).data) || isAdmin() || isCreator();
       }
       match /attendance_records/{dateStr} {
-        allow read, write: if isOwnerOrCollaborator(
+        allow read: if isOwnerOrCollaborator(
           get(/databases/$(database)/documents/classes/$(classId)).data) || isAdmin() || isCreator();
+        // Creating a record (first-time marking of a date, or restoring a
+        // previously-deleted class from its backup) is unrestricted by date —
+        // only editing/deleting a record that already exists is subject to
+        // the 7-day window, so historical attendance can't be quietly
+        // rewritten after the fact by anyone but the principal/creator.
+        // submittedBy, when present, must name the actual caller — otherwise
+        // a collaborator could falsely attribute a submission to someone else.
+        allow create: if (isOwnerOrCollaborator(
+          get(/databases/$(database)/documents/classes/$(classId)).data) || isAdmin() || isCreator()) &&
+          (request.resource.data.submittedBy == null || request.resource.data.submittedBy.uid == request.auth.uid);
+        allow update: if (isAdmin() || isCreator() ||
+          (isOwnerOrCollaborator(get(/databases/$(database)/documents/classes/$(classId)).data) &&
+           withinAttendanceEditWindow(dateStr))) &&
+          (request.resource.data.submittedBy == null || request.resource.data.submittedBy.uid == request.auth.uid);
+        allow delete: if isAdmin() || isCreator() ||
+          (isOwnerOrCollaborator(get(/databases/$(database)/documents/classes/$(classId)).data) &&
+           withinAttendanceEditWindow(dateStr));
       }
       match /syllabus/{topicId} {
         allow read, write: if isOwnerOrCollaborator(
