@@ -695,8 +695,18 @@ table.report-table tr:last-child td{border-bottom:none;}
   .cal-grid{gap:2px;}
 }
 
-/* Respect safe areas on notched devices when wrapped as an app */
-.topbar{padding-top:max(16px, env(safe-area-inset-top));}
+/* Respect safe areas on notched/Dynamic-Island iPhones, in both portrait
+   and landscape, whether opened in Safari or added to the Home Screen. */
+.topbar{
+  padding-top:max(16px, env(safe-area-inset-top));
+  padding-left:max(20px, env(safe-area-inset-left));
+  padding-right:max(20px, env(safe-area-inset-right));
+}
+.dash-header{
+  padding-top:max(20px, env(safe-area-inset-top));
+  padding-left:max(20px, env(safe-area-inset-left));
+  padding-right:max(20px, env(safe-area-inset-right));
+}
 .sticky-cta{padding-bottom:max(22px, env(safe-area-inset-bottom));}
 #pin-overlay, #pin-setup-overlay{padding-top:max(32px, env(safe-area-inset-top)); padding-bottom:max(32px, env(safe-area-inset-bottom));}
 </style>
@@ -898,6 +908,11 @@ table.report-table tr:last-child td{border-bottom:none;}
         </div>
       </div>
 
+      <div class="settings-item hidden" id="prof-sheet-email-row" style="cursor:default; border-radius:var(--radius-sm); margin-bottom:16px;">
+        <span>Email ID</span>
+        <span class="val" id="prof-email-display">—</span>
+      </div>
+
       <div class="field" style="margin-bottom:10px;">
         <label>Full Name</label>
         <input type="text" id="prof-name" placeholder="e.g. Anjali Verma" />
@@ -1040,7 +1055,8 @@ table.report-table tr:last-child td{border-bottom:none;}
     <div class="topbar">
       <button class="back" id="btn-back-dash">←</button>
       <h1 id="subj-title">Subject</h1>
-      <button class="back" id="btn-share-class" title="Share this class" style="margin-left:auto;">👥</button>
+      <button class="back" id="btn-rename-class" title="Rename this class" style="margin-left:auto;">✏️</button>
+      <button class="back" id="btn-share-class" title="Share this class">👥</button>
       <button class="back" id="btn-delete-class" title="Delete this class">🗑</button>
     </div>
     <div class="tabbar">
@@ -1070,6 +1086,10 @@ table.report-table tr:last-child td{border-bottom:none;}
         <!-- ATTENDANCE FREEZE -->
         <button type="button" class="btn btn-ghost btn-block" style="margin-bottom:14px;" id="btn-lock-attendance">🔓 Lock Attendance</button>
 
+        <div class="flex-between" style="margin-bottom:10px;">
+          <span class="hint-text" style="margin:0;">Sort by</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-mark-sort-toggle">⇅ Roll No.</button>
+        </div>
         <div class="principal-search" id="mark-search-field">
           <input type="text" id="mark-search" placeholder="Search by name or roll number…" />
         </div>
@@ -1110,7 +1130,10 @@ table.report-table tr:last-child td{border-bottom:none;}
           </div>
           <button class="btn btn-primary btn-block" id="btn-save-next">Save &amp; Add Next</button>
         </div>
-        <div class="section-label">Students (<span id="roster-count">0</span>)</div>
+        <div class="flex-between" style="margin-bottom:2px;">
+          <div class="section-label" style="margin:0;">Students (<span id="roster-count">0</span>)</div>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-roster-sort-toggle">⇅ Roll No.</button>
+        </div>
         <div id="roster-list"></div>
       </div>
 
@@ -1134,6 +1157,8 @@ table.report-table tr:last-child td{border-bottom:none;}
             </div>
           </div>
           <p class="hidden" id="day-detail-topic" style="font-size:13px; color:var(--slate); margin:-6px 0 12px;"></p>
+          <p class="hidden" id="day-detail-time" style="font-size:12.5px; color:var(--slate-soft); margin:-6px 0 4px;"></p>
+          <div class="hidden" id="day-detail-history" style="font-size:12px; color:var(--slate-soft); margin:0 0 12px; padding-left:2px;"></div>
           <div class="stat-strip">
             <div class="stat-chip"><span class="num mono" id="day-present-count">0</span><span class="lbl">Present</span></div>
             <div class="stat-chip"><span class="num mono" id="day-absent-count">0</span><span class="lbl">Absent</span></div>
@@ -1266,6 +1291,24 @@ table.report-table tr:last-child td{border-bottom:none;}
     </div>
   </section>
 
+  <!-- ================= PROFESSOR VIEW (creator only — the exact My Subjects screen, viewed on a professor's behalf) ================= -->
+  <section class="screen" id="screen-professor-view">
+    <div class="topbar">
+      <button class="back" id="btn-back-professor-view">←</button>
+      <h1 id="pv-title">Professor</h1>
+    </div>
+    <div class="content" style="padding-top:8px;">
+      <div class="section-label" style="margin-top:0;">Classes</div>
+      <div class="subject-grid" id="pv-subject-list"></div>
+      <div class="empty-state hidden" id="pv-subject-empty">
+        <div class="glyph">◎</div>
+        <h3>No classes yet</h3>
+        <p>Tap the + button to add this professor's first class.</p>
+      </div>
+    </div>
+    <button class="fab" id="btn-pv-add-subject">+</button>
+  </section>
+
   <!-- ================= ADD / ASSIGN CLASS (Department → Course → Section) ================= -->
   <section class="screen" id="screen-add-class">
     <div class="topbar">
@@ -1387,6 +1430,10 @@ Physics
       <div class="field" style="margin-bottom:16px;">
         <label>Course</label>
         <select id="mr-course"><option value="">Select course…</option></select>
+        <label class="checkbox-row" style="margin-top:8px; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--slate);">
+          <input type="checkbox" id="mr-course-all-depts" style="width:16px; height:16px; flex-shrink:0;" />
+          Course not listed? Show courses from all departments
+        </label>
       </div>
       <div class="field hidden" id="mr-section-view-wrap" style="margin-bottom:16px;">
         <label>Section (viewing existing roster)</label>
@@ -1410,7 +1457,13 @@ Physics
       <div class="section-label" style="margin-top:0;">Upload Excel / CSV file</div>
       <div class="form-card" style="margin-bottom:10px;">
         <input type="file" id="mr-file-input" accept=".xlsx,.xls,.csv" style="width:100%; font-size:13.5px;" />
-        <p class="hint-text" style="margin-top:10px; margin-bottom:0;">Reads columns by name (any order): <b>Roll Number, Name, Mobile/Contact, Email, Section, Batch</b>. Matches common header variants like ROLL_NUMBER, STUDENT_NAME, MOBILENO, E_MAIL, SECTION_NAME, and BATCH_NAME automatically. If your file has <b>both</b> a Section and a Batch column, every student is saved under both — a professor can then fetch by typing either the section name (e.g. "M5M6") or the batch name (e.g. "M5") as their class name. A professor can also combine several batches into one class by typing their codes together with no spaces (e.g. "B5B6B1B2" for batches B5, B6, B1 and B2) — each code just needs its own roster uploaded here first.</p>
+        <p class="hint-text" style="margin-top:10px; margin-bottom:0;">Reads columns by name (any order) and keeps only <b>Roll Number, Name, Mobile/Contact, Email, Section, Batch</b> — every other column in the file (address, marks, parents' names, etc.) is ignored. Matches common header variants like ROLL_NUMBER, STUDENT_NAME, MOBILENO, E_MAIL, SECTION_NAME, and BATCH_NAME automatically. If a row has no Section/Batch, it's named from that row's <b>Course + Semester</b> columns instead (see below) — most admission-office exports need this. If your file has <b>both</b> a Section and a Batch column, every student is saved under both — a professor can then fetch by typing either the section name (e.g. "M5M6") or the batch name (e.g. "M5") as their class name. A professor can also combine several batches into one class by typing their codes together with no spaces (e.g. "B5B6B1B2" for batches B5, B6, B1 and B2) — each code just needs its own roster uploaded here first.</p>
+      </div>
+
+      <div class="field hidden" id="mr-file-default-section-wrap" style="margin-bottom:16px;">
+        <label>Fallback Section / Batch (only if Course/Semester are also missing)</label>
+        <input type="text" id="mr-file-default-section" placeholder="e.g. B1B2" />
+        <p class="hint-text" style="margin-top:6px;">A student with no Section/Batch is first named from their Course + Semester columns (e.g. "M.SC. BIOTECHNOLOGY" + Sem 3 → "MSC BIOTECHNOLOGY SEM3") — that's the name a professor will type as their class name to fetch this roster. This field only kicks in for a row missing Course/Semester too; leave it blank to skip those instead.</p>
       </div>
 
       <div class="field" style="margin-bottom:16px;">
@@ -1580,10 +1633,15 @@ const state = {
   classes: [],           // [{id, className, totalLectures}]  — current professor's own classes
   activeClassId: null,
   readOnly: false,        // true when a principal (and NOT a creator) is viewing someone else's class
-  subjectOpenedFrom: 'dashboard', // 'dashboard' | 'principal' — where the back button should return to
+  subjectOpenedFrom: 'dashboard', // 'dashboard' | 'principal' | 'professor-view' — where the back button should return to
+  viewingProfessorUid: null,   // creator only: uid of the professor whose My Subjects dashboard is being viewed
+  viewingProfessorLabel: '',   // creator only: display label for that professor, shown as the screen title
+  acForProfessorUid: null,     // creator only: when set, Add Class creates/saves the class under this professor's uid instead of the creator's own
+  acReturnScreen: null,        // screen id the Add/Assign Class screen should return to (defaults to role-based screen when null)
   students: [],           // students of active class [{id, name, rollNumber, contact, lecturesAttended}]
   attendanceCache: {},    // dateStr -> {presentStudents:[], absentStudents:[]}
   markSearchQuery: '',    // Mark tab search box — filters which students are shown to tap, not the roster itself
+  rosterSortMode: 'roll', // 'roll' | 'attendance' — student list order, shared by the Mark and Students tabs
   markSelections: {},     // studentId -> 'present'|'absent'  (for today / editing date)
   markDate: todayStr(),
   calMonth: new Date().getMonth(),
@@ -1708,14 +1766,19 @@ function backFromPublicView(){ showScreen('screen-home'); }
 function backFromLogin(){ showScreen('screen-home'); }
 function backFromNotices(){ showScreen(state.role==='principal' ? 'screen-principal' : 'screen-dashboard'); }
 function backFromSettings(){ goHome(); }
-function backFromAddClass(){ showScreen(state.role==='principal' ? 'screen-principal' : 'screen-dashboard'); }
+function backFromAddClass(){
+  if(state.acReturnScreen){ showScreen(state.acReturnScreen); return; }
+  showScreen(state.role==='principal' ? 'screen-principal' : 'screen-dashboard');
+}
+function backFromProfessorView(){ showScreen('screen-principal'); }
 function backFromCatalog(){ showScreen('screen-settings'); }
 function backFromManageHods(){ showScreen('screen-settings'); }
 function backFromMasterRoster(){ showScreen('screen-settings'); }
 function backFromAuditLog(){ showScreen('screen-settings'); }
 function backFromSubject(){
   if(unsubStudents) unsubStudents();
-  if(state.subjectOpenedFrom === 'principal') showScreen('screen-principal');
+  if(state.subjectOpenedFrom === 'professor-view') showScreen('screen-professor-view');
+  else if(state.subjectOpenedFrom === 'principal') showScreen('screen-principal');
   else showScreen('screen-dashboard');
 }
 
@@ -1730,6 +1793,7 @@ const SCREEN_BACK_HANDLERS = {
   'screen-master-roster': backFromMasterRoster,
   'screen-audit-log': backFromAuditLog,
   'screen-subject': backFromSubject,
+  'screen-professor-view': backFromProfessorView,
 };
 
 window.addEventListener('popstate', ()=>{
@@ -1973,6 +2037,49 @@ function ackNotice(id, btnEl){
 function formatNoticeDate(ts){
   if(!ts || !ts.toDate) return '';
   return ts.toDate().toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+}
+
+function formatSubmittedAt(ts){
+  if(!ts || !ts.toDate) return '';
+  return ts.toDate().toLocaleString('en-IN', {day:'numeric', month:'short', hour:'numeric', minute:'2-digit'});
+}
+
+// Prefers the live, up-to-date name from state.professorNames (kept fresh by
+// ensureProfessorNames) over the name that was stored on the record at
+// submission time — so if someone's display name changes later, past
+// records still resolve to their current name rather than a stale one.
+function actorLabel(entry){
+  if(!entry) return 'Unknown';
+  const live = entry.uid && state.professorNames && state.professorNames[entry.uid];
+  return live ? `Prof. ${live}` : (entry.name || 'Unknown');
+}
+
+// Renders the "🕓 Submitted ... by ..." line's companion history toggle.
+// Only shown when a day's attendance has been touched more than once
+// (i.e. it's actually worth knowing who else was involved) — the common
+// case of one submission, never edited, stays a single quiet line.
+function renderDayDetailHistory(history){
+  const el = document.getElementById('day-detail-history');
+  if(history.length <= 1){
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  el.classList.remove('hidden');
+  el.innerHTML = `<button type="button" id="day-detail-history-toggle" class="link-btn" style="font-size:12px;">View ${history.length} edits</button>
+    <ul id="day-detail-history-list" class="hidden" style="margin:6px 0 0; padding-left:18px;"></ul>`;
+  document.getElementById('day-detail-history-toggle').addEventListener('click', ()=>{
+    const listEl = document.getElementById('day-detail-history-list');
+    const toggleBtn = document.getElementById('day-detail-history-toggle');
+    const opening = listEl.classList.contains('hidden');
+    if(opening){
+      listEl.innerHTML = history.slice().reverse().map(h=>
+        `<li>${escapeHtml(actorLabel(h))} — ${h.action === 'submitted' ? 'submitted' : 'edited'} ${formatSubmittedAt(h.at)}</li>`
+      ).join('');
+    }
+    listEl.classList.toggle('hidden');
+    toggleBtn.textContent = opening ? 'Hide history' : `View ${history.length} edits`;
+  });
 }
 
 function noticeCardHtml(n, ackedSet){
@@ -2830,6 +2937,9 @@ function loadPrincipalData(){
   }).then(()=>{
     loadingEl.classList.add('hidden');
     renderPrincipalTabs();
+    // Keep an open (or about-to-reopen) Professor View screen in sync too —
+    // its list is filtered out of this same state.allClasses snapshot.
+    if(state.viewingProfessorUid) renderProfessorView();
   }).catch(err=>{
     loadingEl.classList.add('hidden');
     toast('Could not load principal data');
@@ -3022,7 +3132,7 @@ function renderPrincipalClasses(){
             ${sharedLine}
           </div>
           <div class="subject-arrow">›</div>`;
-        card.addEventListener('click', ()=> openSubject(c.id, true));
+        card.addEventListener('click', ()=> openSubject(c.id, 'principal'));
         cBody.appendChild(card);
       });
       courseEl.appendChild(cBody);
@@ -3104,15 +3214,67 @@ function renderPrincipalProfessors(){
       ev.stopPropagation();
       openProfessorSheet('edit', r.uid);
     });
+    card.addEventListener('click', ()=> openProfessorView(r.uid, r.label));
+    list.appendChild(card);
+  });
+}
+
+/* =====================================================================
+   PROFESSOR VIEW (creator only) — the exact My Subjects screen a
+   professor sees themselves, opened on their behalf from the Professors
+   tab. Data is filtered client-side out of state.allClasses (already
+   loaded for the Principal Dashboard), so opening it costs nothing extra.
+   ===================================================================== */
+function openProfessorView(uid, label){
+  state.viewingProfessorUid = uid;
+  state.viewingProfessorLabel = label;
+  document.getElementById('pv-title').textContent = label;
+  renderProfessorView();
+  goToScreen('screen-professor-view');
+}
+
+function renderProfessorView(){
+  const uid = state.viewingProfessorUid;
+  if(!uid) return;
+  const list = document.getElementById('pv-subject-list');
+  const empty = document.getElementById('pv-subject-empty');
+  list.innerHTML = '';
+  // Same ownership rule as a professor's own My Subjects: classes they own,
+  // plus classes shared with them as a collaborator.
+  const classes = state.allClasses.filter(c=> c.professorId===uid || (c.collaboratorIds||[]).includes(uid));
+  if(classes.length === 0){ empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  classes.forEach(c=>{
+    const card = document.createElement('div');
+    card.className = 'subject-card';
+    const initials = (c.className||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    const isShared = c.professorId && c.professorId !== uid;
+    const baseContext = c.courseId
+      ? `${escapeHtml(c.departmentName||'')} · ${escapeHtml(c.courseName||'')} · ${c.totalLectures||0} lectures`
+      : `${c.totalLectures||0} lectures logged · <span style="color:var(--gold); font-weight:600;">tap to assign a course</span>`;
+    const contextLine = isShared ? `${baseContext} · Shared by ${escapeHtml(professorLabel(c.professorId))}` : baseContext;
+    card.innerHTML = `
+      <div class="subject-glyph">${initials}</div>
+      <div class="subject-info">
+        <h3>${escapeHtml(c.className)}</h3>
+        <p>${contextLine}</p>
+      </div>
+      <div class="subject-arrow">›</div>`;
     card.addEventListener('click', ()=>{
-      state.principalScopeProfId = r.uid;
-      state.principalClassQuery = '';
-      document.getElementById('principal-class-search').value = '';
-      switchPrincipalTab('classes');
+      state.acReturnScreen = 'screen-professor-view';
+      if(!c.courseId){ state.acForProfessorUid = null; openAddClass('assign', c.id, c); }
+      else{ openSubject(c.id, 'professor-view'); }
     });
     list.appendChild(card);
   });
 }
+
+document.getElementById('btn-back-professor-view').addEventListener('click', ()=> history.back());
+document.getElementById('btn-pv-add-subject').addEventListener('click', ()=>{
+  state.acForProfessorUid = state.viewingProfessorUid;
+  state.acReturnScreen = 'screen-professor-view';
+  openAddClass('create');
+});
 
 /* =====================================================================
    ADD / EDIT PROFESSOR (principal only)
@@ -3146,12 +3308,15 @@ function openProfessorSheet(mode, uid){
     document.getElementById('prof-save-label').textContent = 'Create Account';
     newFields.classList.remove('hidden');
     existingActions.classList.add('hidden');
+    document.getElementById('prof-sheet-email-row').classList.add('hidden');
   } else {
     const rec = state.professorRecords[uid] || {};
     document.getElementById('prof-sheet-title').textContent = rec.displayName ? `Edit ${rec.displayName}` : 'Edit Professor';
     document.getElementById('prof-save-label').textContent = 'Save Changes';
     newFields.classList.add('hidden');
     existingActions.classList.remove('hidden');
+    document.getElementById('prof-sheet-email-row').classList.remove('hidden');
+    document.getElementById('prof-email-display').textContent = rec.email || '—';
     document.getElementById('prof-name').value = rec.displayName || '';
     document.getElementById('prof-phone').value = rec.phone || '';
     if(rec.departmentId) document.getElementById('prof-department').value = rec.departmentId;
@@ -3413,6 +3578,16 @@ document.getElementById('btn-ac-save').addEventListener('click', async ()=>{
   const btn = document.getElementById('btn-ac-save');
   setBtnLoading(btn, true);
 
+  // A creator adding/assigning a class from a professor's My Subjects view
+  // (screen-professor-view) is acting on that professor's behalf, so the
+  // class belongs to them, not the creator's own uid. Everywhere else this
+  // is just the signed-in professor.
+  const forUid = state.acForProfessorUid || state.user.uid;
+  // That screen's class list comes from the one-time state.allClasses
+  // snapshot (see renderProfessorView), so it needs an explicit reload
+  // after any change made from there.
+  const returningToProfessorView = state.acReturnScreen === 'screen-professor-view';
+
   if(state.acMode==='assign' && state.acTargetClassId){
     db.collection('classes').doc(state.acTargetClassId).update({
       className: section, departmentId: deptId, departmentName: dept?dept.name:'',
@@ -3420,6 +3595,7 @@ document.getElementById('btn-ac-save').addEventListener('click', async ()=>{
     }).then(()=>{
       setBtnLoading(btn,false,'Save');
       toast('Class updated');
+      if(returningToProfessorView) loadPrincipalData();
       history.back();
     }).catch(()=>{ setBtnLoading(btn,false,'Save'); toast('Failed to update class'); });
     return;
@@ -3440,9 +3616,11 @@ document.getElementById('btn-ac-save').addEventListener('click', async ()=>{
     const dup = dupSnap.docs.find(d => normalizeSection(d.data().className) === targetKey);
     if(dup){
       const dupData = dup.data();
-      if(dupData.professorId === state.user.uid){
+      if(dupData.professorId === forUid){
         setBtnLoading(btn,false,'Save Class');
-        toast('You already have a class with this name — open it from your dashboard instead');
+        toast(forUid === state.user.uid
+          ? 'You already have a class with this name — open it from your dashboard instead'
+          : 'This professor already has a class with this name — open it from their dashboard instead');
         return;
       }
       let ownerName = 'another professor';
@@ -3462,12 +3640,13 @@ document.getElementById('btn-ac-save').addEventListener('click', async ()=>{
   }
 
   db.collection('classes').add({
-    className: section, professorId: state.user.uid, totalLectures: 0,
+    className: section, professorId: forUid, totalLectures: 0,
     departmentId: deptId, departmentName: dept?dept.name:'', courseId: courseId, courseName: course?course.name:'',
     collaboratorIds: []
   }).then(()=>{
     setBtnLoading(btn,false,'Save Class');
     toast('Class added');
+    if(returningToProfessorView) loadPrincipalData();
     history.back();
   }).catch(()=>{ setBtnLoading(btn,false,'Save Class'); toast('Failed to add class'); });
 });
@@ -3484,7 +3663,10 @@ function renderCatalogManager(){
       <div class="dept-block" data-dept="${d.id}">
         <div class="dept-block-head">
           <h3>${escapeHtml(d.name)}</h3>
-          <button class="catalog-del" data-type="dept" data-id="${d.id}" aria-label="Delete department">×</button>
+          <div style="display:flex; gap:8px; flex-shrink:0;">
+            <button class="catalog-edit" data-type="dept" data-id="${d.id}" aria-label="Rename department">✎</button>
+            <button class="catalog-del" data-type="dept" data-id="${d.id}" aria-label="Delete department">×</button>
+          </div>
         </div>
         <div class="inline-add">
           <input type="text" class="new-course-input" data-dept="${d.id}" placeholder="e.g. B.Sc III Sem" />
@@ -3493,7 +3675,10 @@ function renderCatalogManager(){
         ${courses.map(c=>`
           <div class="catalog-row">
             <div class="name">${escapeHtml(c.name)}</div>
-            <button class="catalog-del" data-type="course" data-id="${c.id}" aria-label="Delete course">×</button>
+            <div style="display:flex; gap:8px; flex-shrink:0;">
+              <button class="catalog-edit" data-type="course" data-id="${c.id}" aria-label="Rename course">✎</button>
+              <button class="catalog-del" data-type="course" data-id="${c.id}" aria-label="Delete course">×</button>
+            </div>
           </div>`).join('') || '<p class="hint-text" style="margin-bottom:14px;">No courses yet in this department.</p>'}
       </div>`;
   }).join('');
@@ -3533,6 +3718,95 @@ function renderCatalogManager(){
       }
     });
   });
+  wrap.querySelectorAll('.catalog-edit').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const type = btn.dataset.type, id = btn.dataset.id;
+      if(type==='dept') renameDepartment(id); else renameCourse(id);
+    });
+  });
+}
+
+/* Renaming here only ever touches the `departments` / `courses` catalog
+   docs and the denormalized name copies stored elsewhere (classes,
+   masterRosters, hods, professors). It's a one-way sync: a professor
+   renaming their own class (btn-rename-class, above) only ever writes to
+   that one classes doc's className field and never touches these catalog
+   collections, so renaming a class can never change a Department/Course
+   name — only the reverse (creator renaming the catalog) fans out. */
+async function renameDepartment(id){
+  const dept = state.departments.find(d=>d.id===id);
+  if(!dept) return;
+  const next = prompt('Rename department:', dept.name || '');
+  if(next === null) return; // cancelled
+  const trimmed = next.trim();
+  if(!trimmed){ toast('Department name cannot be empty'); return; }
+  if(trimmed === dept.name) return;
+  const dup = state.departments.find(d=> d.id!==id && d.name.trim().toLowerCase()===trimmed.toLowerCase());
+  if(dup){ toast('A department with this name already exists'); return; }
+
+  const oldName = dept.name || '';
+  try{
+    await db.collection('departments').doc(id).update({ name: trimmed });
+    // Fan the new name out to every place it's denormalized, so nothing
+    // keeps showing the old department name.
+    const [classSnap, rosterSnap, hodSnap, profSnap] = await Promise.all([
+      db.collection('classes').where('departmentId','==', id).get(),
+      db.collection('masterRosters').where('departmentId','==', id).get(),
+      db.collection('hods').where('departmentId','==', id).get(),
+      db.collection('professors').where('departmentId','==', id).get()
+    ]);
+    const docs = [...classSnap.docs, ...rosterSnap.docs, ...hodSnap.docs, ...profSnap.docs];
+    for(let i=0; i<docs.length; i+=450){
+      const batch = db.batch();
+      docs.slice(i, i+450).forEach(d=> batch.update(d.ref, { departmentName: trimmed }));
+      await batch.commit();
+    }
+    toast('Department renamed');
+    logAuditEvent('department_renamed', { departmentId: id, oldName, newName: trimmed });
+  } catch(err){
+    console.error('rename department failed', err);
+    toast('Could not rename department — try again');
+  }
+}
+
+async function renameCourse(id){
+  const course = state.courses.find(c=>c.id===id);
+  if(!course) return;
+  const next = prompt('Rename course:', course.name || '');
+  if(next === null) return; // cancelled
+  const trimmed = next.trim();
+  if(!trimmed){ toast('Course name cannot be empty'); return; }
+  if(trimmed === course.name) return;
+  const dup = state.courses.find(c=> c.id!==id && c.departmentId===course.departmentId && c.name.trim().toLowerCase()===trimmed.toLowerCase());
+  if(dup){ toast('A course with this name already exists in this department'); return; }
+
+  const oldName = course.name || '';
+  const newCourseKey = normalizeCourseName(trimmed);
+  try{
+    await db.collection('courses').doc(id).update({ name: trimmed });
+    const [classSnap, rosterSnap] = await Promise.all([
+      db.collection('classes').where('courseId','==', id).get(),
+      db.collection('masterRosters').where('courseId','==', id).get()
+    ]);
+    for(let i=0; i<classSnap.docs.length; i+=450){
+      const batch = db.batch();
+      classSnap.docs.slice(i, i+450).forEach(d=> batch.update(d.ref, { courseName: trimmed }));
+      await batch.commit();
+    }
+    // masterRosters also key off courseKey (normalized course name) for
+    // college-wide matching — keep that in sync too, or lookups for this
+    // course would silently stop finding these rosters.
+    for(let i=0; i<rosterSnap.docs.length; i+=450){
+      const batch = db.batch();
+      rosterSnap.docs.slice(i, i+450).forEach(d=> batch.update(d.ref, { courseName: trimmed, courseKey: newCourseKey }));
+      await batch.commit();
+    }
+    toast('Course renamed');
+    logAuditEvent('course_renamed', { courseId: id, oldName, newName: trimmed });
+  } catch(err){
+    console.error('rename course failed', err);
+    toast('Could not rename course — try again');
+  }
 }
 
 document.getElementById('btn-add-dept').addEventListener('click', ()=>{
@@ -3777,17 +4051,21 @@ function activeRosterDept(){
   return state.role === 'principal' ? state.principalRosterDept : state.hodDept;
 }
 
-// Full catalog, not just this department's own courses — a Section
-// Incharge (or principal) routinely deals with shared/cross-department
-// courses (e.g. a batch's core subject that professors in other departments
-// also teach), and restricting this list used to force everyone onto
-// separate course records that master-roster lookups could never match up.
+// Defaults to only the selected department's courses, so the list stays
+// short — but some courses/batches are genuinely shared across departments,
+// so the "show courses from all departments" checkbox (state.mrShowAllDeptCourses)
+// lets someone fall back to the full college-wide catalog when the course
+// they need isn't under the department they picked.
 function populateMrCourseDropdown(dept){
   const sel = document.getElementById('mr-course');
+  const checkbox = document.getElementById('mr-course-all-depts');
   if(!dept){ sel.innerHTML = '<option value="">Select department above first…</option>'; return; }
-  const list = state.courses.slice().sort((a,b)=> a.name.localeCompare(b.name));
-  sel.innerHTML = (list.length ? '<option value="">Select course…</option>' : '<option value="">No courses yet — ask principal to add one</option>')
+  const showAll = !!(checkbox && checkbox.checked);
+  const list = (showAll ? state.courses.slice() : state.courses.filter(c=> c.departmentId===dept.id))
+    .sort((a,b)=> a.name.localeCompare(b.name));
+  sel.innerHTML = (list.length ? '<option value="">Select course…</option>' : `<option value="">No courses ${showAll ? '' : 'in this department '}yet — ask principal to add one</option>`)
     + list.map(c=>{
+      if(!showAll) return `<option value="${c.id}">${escapeHtml(c.name)}</option>`;
       const cdept = state.departments.find(d=>d.id===c.departmentId);
       const label = (cdept && cdept.id!==dept.id) ? `${c.name} (${cdept.name})` : c.name;
       return `<option value="${c.id}">${escapeHtml(label)}</option>`;
@@ -3795,10 +4073,13 @@ function populateMrCourseDropdown(dept){
 }
 
 function resetMrForm(){
+  document.getElementById('mr-course-all-depts').checked = false;
   document.getElementById('mr-roster-text').value = '';
   document.getElementById('mr-manual-section').value = '';
   document.getElementById('mr-existing-info').textContent = '';
   document.getElementById('mr-file-input').value = '';
+  document.getElementById('mr-file-default-section').value = '';
+  document.getElementById('mr-file-default-section-wrap').classList.add('hidden');
   document.getElementById('mr-combo-filter').value = '';
   document.getElementById('mr-preview-info').textContent = '';
   document.getElementById('mr-manual-wrap').classList.add('hidden');
@@ -3894,13 +4175,16 @@ document.getElementById('btn-backfill-class-stats').addEventListener('click', as
 const AUDIT_ACTION_LABELS = {
   class_deleted: 'Class deleted',
   class_restored: 'Class restored',
+  class_renamed: 'Class renamed',
   professor_created: 'Professor account created',
   professor_edited: 'Professor details edited',
   professor_removed: 'Professor profile removed',
   hod_assignment_changed: 'Section Incharge assignment changed',
   roster_deleted: 'Master roster deleted',
   department_deleted: 'Department deleted',
-  course_deleted: 'Course deleted'
+  course_deleted: 'Course deleted',
+  department_renamed: 'Department renamed',
+  course_renamed: 'Course renamed'
 };
 
 function auditDetailLine(entry){
@@ -3908,6 +4192,7 @@ function auditDetailLine(entry){
   switch(entry.action){
     case 'class_deleted': return `${d.className||'—'} (${d.studentCount||0} students)`;
     case 'class_restored': return `${d.className||'—'}`;
+    case 'class_renamed': return `${d.oldName||'—'} → ${d.newName||'—'}`;
     case 'professor_created': return `${d.name||d.email||'—'}${d.departmentName ? ' · '+d.departmentName : ''}`;
     case 'professor_edited': return `${d.name||'—'}${d.departmentName ? ' · '+d.departmentName : ''}`;
     case 'professor_removed': return `${d.name||d.email||'—'}`;
@@ -3915,6 +4200,8 @@ function auditDetailLine(entry){
     case 'roster_deleted': return d.scope==='course' ? `${d.courseName||'—'} — all sections (${d.sectionCount||0})` : `${d.sectionLabel||'—'} (${d.studentCount||0} students)`;
     case 'department_deleted': return d.departmentName || '—';
     case 'course_deleted': return d.courseName || '—';
+    case 'department_renamed': return `${d.oldName||'—'} → ${d.newName||'—'}`;
+    case 'course_renamed': return `${d.oldName||'—'} → ${d.newName||'—'}`;
     default: return '';
   }
 }
@@ -4076,6 +4363,9 @@ document.getElementById('btn-toggle-mr-manual').addEventListener('click', ()=>{
 });
 
 document.getElementById('mr-course').addEventListener('change', ()=> loadSectionsForCourse());
+document.getElementById('mr-course-all-depts').addEventListener('change', ()=>{
+  populateMrCourseDropdown(activeRosterDept());
+});
 document.getElementById('mr-section-view').addEventListener('change', ()=> loadCurrentMasterRoster());
 
 /* Find every masterRosters doc for this course — both new per-section docs
@@ -4529,7 +4819,12 @@ const MR_HEADER_MAP = {
   // renderSectionChecks(), which turns each distinct value of either
   // column into its own saveable roster.
   section: ['SECTIONNAME','SECTION'],
-  batch: ['BATCHNAME','BATCH']
+  batch: ['BATCHNAME','BATCH'],
+  // Not part of the 6 required fields on their own — used only as a
+  // fallback to derive a Section/Batch name (see deriveSectionLabel())
+  // when a row has neither, which admission-office exports usually don't.
+  course: ['COURSE'],
+  semester: ['SEMESTER','SEM']
 };
 function matchHeaderKey(header){
   const norm = normalizeHeader(header);
@@ -4564,6 +4859,20 @@ function parseSpreadsheetFile(file){
   });
 }
 
+// Builds a Section/Batch name from a row's Course + Semester columns — used
+// as a fallback for rows that have neither Section nor Batch (see
+// applyComboFilterAndPreview()). "M.SC. BIOTECHNOLOGY" + semester "3" ->
+// "MSC BIOTECHNOLOGY SEM3". Whatever this produces is what a professor will
+// need to type as their class name to fetch this roster, so it's kept
+// readable rather than hashed/shortened.
+function deriveSectionLabel(s){
+  const course = String(s.course||'').replace(/\./g,'').replace(/\s+/g,' ').trim();
+  const sem = String(s.semester||'').trim();
+  if(!course && !sem) return '';
+  if(course && sem) return `${course} SEM${sem}`;
+  return course || `SEM${sem}`;
+}
+
 function applyComboFilterAndPreview(){
   if(!state.mrRawFileStudents) return;
   const filterText = document.getElementById('mr-combo-filter').value.trim();
@@ -4571,10 +4880,30 @@ function applyComboFilterAndPreview(){
   const filtered = codes.length
     ? state.mrRawFileStudents.filter(s=> codes.includes(String(s.combination||'').toUpperCase()))
     : state.mrRawFileStudents;
+
+  // Many admission-office exports leave Section/Batch blank for most rows.
+  // Rather than silently dropping those students: first try deriving a name
+  // from that row's own Course + Semester columns (works per-row, so a file
+  // mixing several courses/semesters still splits correctly); only fall
+  // back to the manually-typed default below that if even Course/Semester
+  // are missing. Rows that already have a real Section/Batch from the file
+  // are left untouched either way.
+  const defaultSection = document.getElementById('mr-file-default-section').value.trim();
+  let fromFile = 0, derived = 0, fromDefault = 0;
+  const withFallback = filtered.map(s=>{
+    if(s.section || s.batch){ fromFile++; return s; }
+    const derivedLabel = deriveSectionLabel(s);
+    if(derivedLabel){ derived++; return { ...s, section: derivedLabel }; }
+    if(defaultSection){ fromDefault++; return { ...s, section: defaultSection }; }
+    return s;
+  });
+
   document.getElementById('mr-preview-info').textContent =
-    `${filtered.length} of ${state.mrRawFileStudents.length} student(s) matched${codes.length ? ' (filtered by combination)' : ''}.`;
-  renderSectionChecks(filtered);
-  return filtered;
+    `${filtered.length} of ${state.mrRawFileStudents.length} student(s) matched${codes.length ? ' (filtered by combination)' : ''}.`
+    + (derived ? ` ${derived} named from Course+Semester.` : '')
+    + (fromDefault ? ` ${fromDefault} named from your default.` : '');
+  renderSectionChecks(withFallback);
+  return withFallback;
 }
 
 /* Group the (combination-filtered) rows by BOTH their Section column and
@@ -4628,9 +4957,11 @@ document.getElementById('mr-file-input').addEventListener('change', async (e)=>{
     if(students.length===0){
       preview.textContent = 'No valid rows found — check the file has Roll Number and Name columns.';
       state.mrRawFileStudents = null;
+      document.getElementById('mr-file-default-section-wrap').classList.add('hidden');
       return;
     }
     state.mrRawFileStudents = students;
+    document.getElementById('mr-file-default-section-wrap').classList.remove('hidden');
     applyComboFilterAndPreview();
   } catch(err){
     preview.textContent = 'Failed to read this file — is it a valid .xlsx/.xls/.csv?';
@@ -4640,6 +4971,7 @@ document.getElementById('mr-file-input').addEventListener('change', async (e)=>{
 });
 
 document.getElementById('mr-combo-filter').addEventListener('input', applyComboFilterAndPreview);
+document.getElementById('mr-file-default-section').addEventListener('input', debounce(applyComboFilterAndPreview, 300));
 
 function parseRosterText(text){
   return text.split('\n').map(line=>{
@@ -4937,6 +5269,8 @@ function renderSubjects(){
       </div>
       <div class="subject-arrow">›</div>`;
     card.addEventListener('click', ()=>{
+      state.acForProfessorUid = null;
+      state.acReturnScreen = null;
       if(!c.courseId){ openAddClass('assign', c.id, c); }
       else{ openSubject(c.id); }
     });
@@ -4944,7 +5278,11 @@ function renderSubjects(){
   });
 }
 
-document.getElementById('btn-add-subject').addEventListener('click', ()=> openAddClass('create'));
+document.getElementById('btn-add-subject').addEventListener('click', ()=>{
+  state.acForProfessorUid = null;
+  state.acReturnScreen = null;
+  openAddClass('create');
+});
 
 /* =====================================================================
    SUBJECT DETAIL
@@ -4958,18 +5296,22 @@ function findClassById(classId){
   return state.classes.find(c=>c.id===classId) || state.allClasses.find(c=>c.id===classId);
 }
 
-function openSubject(classId, openedFromPrincipal){
+function openSubject(classId, openedFrom){
   state.activeClassId = classId;
-  // A creator gets full edit access even when browsing in from the
-  // Principal Dashboard — only a non-creator principal is locked to the
-  // read-only view.
-  state.readOnly = !!openedFromPrincipal && !state.isCreator;
-  state.subjectOpenedFrom = openedFromPrincipal ? 'principal' : 'dashboard';
+  // openedFrom: 'principal' (read-only tree view, unless the viewer is a
+  // creator), 'professor-view' (a creator viewing a specific professor's own
+  // dashboard on their behalf — always full edit access for a creator), or
+  // undefined (the signed-in professor's own My Subjects dashboard).
+  state.readOnly = (openedFrom === 'principal') && !state.isCreator;
+  state.subjectOpenedFrom = openedFrom || 'dashboard';
   state.markSearchQuery = '';
   document.getElementById('mark-search').value = '';
+  state.rosterSortMode = 'roll';
+  updateRosterSortButtons();
 
   const cls = findClassById(classId);
   document.getElementById('subj-title').textContent = cls ? cls.className : 'Subject';
+  ensureProfessorNames([cls && cls.professorId, ...((cls && cls.collaboratorIds) || [])]);
 
   // Read-only (principal, non-creator) view: hide the Mark tab and the Add Student form — this is a view, not an edit surface
   document.getElementById('tabbtn-mark').classList.toggle('hidden', state.readOnly);
@@ -4983,6 +5325,7 @@ function openSubject(classId, openedFromPrincipal){
   const canManage = isOwner || state.isCreator;
   document.getElementById('btn-delete-class').classList.toggle('hidden', !(state.readOnly || canManage));
   document.getElementById('btn-share-class').classList.toggle('hidden', !canManage);
+  document.getElementById('btn-rename-class').classList.toggle('hidden', !canManage);
 
   goToScreen('screen-subject');
   switchTab(state.readOnly ? 'roster' : 'mark');
@@ -5064,6 +5407,79 @@ document.getElementById('btn-save-share-class').addEventListener('click', ()=>{
       setBtnLoading(btn, false, 'Save');
       toast('Failed to update sharing');
     });
+});
+
+/* ---- Rename a class (updates the class doc, dashboard cards live via the
+   onSnapshot listener in loadSubjects, and every student's publicView doc
+   so a student checking their own attendance still sees the right name) ---- */
+document.getElementById('btn-rename-class').addEventListener('click', async ()=>{
+  const cls = findClassById(state.activeClassId);
+  if(!cls) return;
+
+  const next = prompt('Rename class / section:', cls.className || '');
+  if(next === null) return; // cancelled
+  const trimmed = next.trim();
+  if(!trimmed){ toast('Class name cannot be empty'); return; }
+  if(normalizeSection(trimmed) === normalizeSection(cls.className)){
+    // Still allow a pure casing/spacing touch-up to go through as-is,
+    // but skip the network round trip entirely if nothing changed.
+    if(trimmed === cls.className) return;
+  } else if(cls.courseId){
+    // Same duplicate check used when creating a class — don't let a rename
+    // collide with another class already sitting in this course.
+    try{
+      const dupSnap = await db.collection('classes').where('courseId','==', cls.courseId).get();
+      const targetKey = normalizeSection(trimmed);
+      const dup = dupSnap.docs.find(d => d.id !== cls.id && normalizeSection(d.data().className) === targetKey);
+      if(dup){
+        const dupData = dup.data();
+        if(dupData.professorId === state.user.uid){
+          toast('You already have a class with this name');
+        } else {
+          let ownerName = 'another professor';
+          try{
+            const nameDoc = await db.collection('professorNames').doc(dupData.professorId).get();
+            if(nameDoc.exists && nameDoc.data().displayName) ownerName = `Prof. ${nameDoc.data().displayName}`;
+          } catch(e){}
+          toast(`This class name is already used by ${ownerName} — ask them to Share it with you instead`);
+        }
+        return;
+      }
+    } catch(err){
+      console.error('rename-class duplicate check failed', err);
+      toast('Could not verify class name — try again');
+      return;
+    }
+  }
+
+  const btn = document.getElementById('btn-rename-class');
+  const oldName = cls.className || '';
+  btn.disabled = true;
+  try{
+    await db.collection('classes').doc(cls.id).update({ className: trimmed });
+    document.getElementById('subj-title').textContent = trimmed;
+
+    // Keep every student's publicView doc (what they see when checking their
+    // own attendance) in sync with the new name.
+    try{
+      const pvSnap = await db.collection('publicView').where('classId','==', cls.id).get();
+      if(!pvSnap.empty){
+        const batch = db.batch();
+        pvSnap.docs.forEach(d=> batch.update(d.ref, { className: trimmed }));
+        await batch.commit();
+      }
+    } catch(err){
+      console.error('publicView rename sync failed', err);
+    }
+
+    logAuditEvent('class_renamed', { classId: cls.id, oldName, newName: trimmed });
+    toast('Class renamed');
+  } catch(err){
+    console.error('rename class failed', err);
+    toast('Could not rename class — try again');
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 /* ---- Delete an accidentally-created class (and everything under it) ---- */
@@ -5262,12 +5678,54 @@ function totalLecturesOf(classId){
   return c ? (c.totalLectures||0) : 0;
 }
 
+/* ---------------------------------------------------------------------
+   ROSTER SORT — shared by the Mark and Students tabs. 'roll' is the
+   original roll-number order; 'attendance' ranks the most regular
+   students first (highest % of lectures attended), least regular last,
+   with roll number as the tie-breaker. A student with no lectures held
+   yet for this class (0/0) has no real percentage to rank by, so they're
+   treated as 0% — same bucket as a genuinely low-attendance student,
+   at the bottom.
+   --------------------------------------------------------------------- */
+function studentAttendancePct(s){
+  const total = totalLecturesOf(state.activeClassId);
+  return total>0 ? (s.lecturesAttended||0)/total*100 : 0;
+}
+
+function sortedStudentsForDisplay(){
+  const arr = state.students.slice();
+  if(state.rosterSortMode === 'attendance'){
+    arr.sort((a,b)=>
+      studentAttendancePct(b) - studentAttendancePct(a) ||
+      String(a.rollNumber||'').localeCompare(String(b.rollNumber||''), undefined, {numeric:true}));
+  } else {
+    arr.sort((a,b)=> String(a.rollNumber||'').localeCompare(String(b.rollNumber||''), undefined, {numeric:true}));
+  }
+  return arr;
+}
+
+function updateRosterSortButtons(){
+  const label = state.rosterSortMode === 'attendance' ? '⇅ Attendance %' : '⇅ Roll No.';
+  const b1 = document.getElementById('btn-mark-sort-toggle'); if(b1) b1.textContent = label;
+  const b2 = document.getElementById('btn-roster-sort-toggle'); if(b2) b2.textContent = label;
+}
+
+function toggleRosterSort(){
+  state.rosterSortMode = state.rosterSortMode === 'attendance' ? 'roll' : 'attendance';
+  updateRosterSortButtons();
+  renderMarkList();
+  renderRoster();
+}
+
+document.getElementById('btn-mark-sort-toggle').addEventListener('click', toggleRosterSort);
+document.getElementById('btn-roster-sort-toggle').addEventListener('click', toggleRosterSort);
+
 function renderRoster(){
   const list = document.getElementById('roster-list');
   document.getElementById('roster-count').textContent = state.students.length;
   list.innerHTML = '';
   const total = totalLecturesOf(state.activeClassId);
-  state.students.forEach(s=>{
+  sortedStudentsForDisplay().forEach(s=>{
     const pct = total>0 ? Math.round((s.lecturesAttended||0)/total*100) : 0;
     const row = document.createElement('div');
     row.className = 'student-row';
@@ -5449,7 +5907,25 @@ function runAttendanceTransaction(classId, dateStr, present, absent, topic){
       const wasLoggedBefore = existing.exists;
       const prevAbsent = wasLoggedBefore ? (existing.data().absentStudents||[]) : null;
 
-      tx.set(dateRef, { date: dateStr, presentStudents: present, absentStudents: absent, topic }, {merge:true});
+      // Who's doing this write — used for both the "currently shows as
+      // submitted/edited by" field and the running history trail below.
+      // FieldValue.serverTimestamp() can't be used inside array elements
+      // (Firestore silently resolves it to null there), so history entries
+      // use a client-generated Timestamp instead — fine for a "who touched
+      // this and roughly when" trail, since submittedAt above is still the
+      // authoritative, server-clocked "as of now" time.
+      const actor = { uid: state.user.uid, name: state.displayName ? `Prof. ${state.displayName}` : state.user.email };
+      const priorHistory = wasLoggedBefore ? (existing.data().editHistory || []) : [];
+      const editHistory = priorHistory
+        .concat([{ ...actor, action: wasLoggedBefore ? 'edited' : 'submitted', at: firebase.firestore.Timestamp.now() }])
+        .slice(-20); // keep the trail bounded — last 20 touches is plenty for "who's been editing this"
+
+      tx.set(dateRef, {
+        date: dateStr, presentStudents: present, absentStudents: absent, topic,
+        submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        submittedBy: actor,
+        editHistory
+      }, {merge:true});
 
       let newTotal = clsSnap.data().totalLectures || 0;
       if(!wasLoggedBefore){
@@ -5810,11 +6286,12 @@ function renderMarkList(){
   if(searchField) searchField.classList.remove('hidden');
 
   const query = (state.markSearchQuery||'').trim().toLowerCase();
+  const orderedStudents = sortedStudentsForDisplay();
   const visibleStudents = query
-    ? state.students.filter(s=>
+    ? orderedStudents.filter(s=>
         String(s.name||'').toLowerCase().includes(query) ||
         String(s.rollNumber||'').toLowerCase().includes(query))
-    : state.students;
+    : orderedStudents;
 
   noMatch.classList.toggle('hidden', visibleStudents.length > 0);
 
@@ -5826,10 +6303,11 @@ function renderMarkList(){
 
   visibleStudents.forEach(s=>{
     const status = state.markSelections[s.id] || 'absent';
+    const pct = Math.round(studentAttendancePct(s));
     const row = document.createElement('div');
     row.className = 'student-row' + (status==='absent' ? ' absent' : '');
     row.innerHTML = `
-      <div class="ring"><div class="init" style="font-size:14px;">${escapeHtml(initialsOf(s.name))}</div></div>
+      ${ringSVG(pct, status==='absent')}
       <div class="student-meta">
         <p class="name">${escapeHtml(s.name)}</p>
         <p class="sub mono">${escapeHtml(s.rollNumber)}</p>
@@ -6015,6 +6493,8 @@ function selectCalendarDay(dateStr){
 
   if(!rec){
     topicEl.classList.add('hidden');
+    document.getElementById('day-detail-time').classList.add('hidden');
+    document.getElementById('day-detail-history').classList.add('hidden');
     document.getElementById('day-present-count').textContent = '—';
     document.getElementById('day-absent-count').textContent = '—';
     document.getElementById('day-detail-list').innerHTML = '<p style="font-size:13px; color:var(--slate);">No attendance was logged on this date.</p>';
@@ -6025,6 +6505,22 @@ function selectCalendarDay(dateStr){
     topicEl.classList.remove('hidden');
   } else {
     topicEl.classList.add('hidden');
+  }
+  const timeEl = document.getElementById('day-detail-time');
+  const historyEl = document.getElementById('day-detail-history');
+  if(rec.pendingSync){
+    timeEl.textContent = '🕓 Not yet synced';
+    timeEl.classList.remove('hidden');
+    historyEl.classList.add('hidden');
+  } else if(rec.submittedAt){
+    const byWho = rec.submittedBy ? ` by ${actorLabel(rec.submittedBy)}` : '';
+    timeEl.textContent = `🕓 Submitted ${formatSubmittedAt(rec.submittedAt)}${byWho}`;
+    timeEl.classList.remove('hidden');
+    renderDayDetailHistory(rec.editHistory || []);
+  } else {
+    // Older records logged before this field existed have no submission time.
+    timeEl.classList.add('hidden');
+    historyEl.classList.add('hidden');
   }
   document.getElementById('day-present-count').textContent = (rec.presentStudents||[]).length;
   document.getElementById('day-absent-count').textContent = (rec.absentStudents||[]).length;
