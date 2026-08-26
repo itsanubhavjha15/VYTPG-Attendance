@@ -23,8 +23,7 @@ service cloud.firestore {
       return request.auth != null &&
         exists(/databases/$(database)/documents/hods/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/hods/$(request.auth.uid)).data.departmentId == deptId;
-    }
-    // True if the caller is the owning professor of a class OR is listed in
+    }    // True if the caller is the owning professor of a class OR is listed in
     // that class's collaboratorIds array. Takes the class doc's data (not the
     // classId) so it can be reused both on the class doc itself (resource.data)
     // and, via get(), on its subcollections.
@@ -96,6 +95,27 @@ service cloud.firestore {
     match /hods/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin() || isCreator());
       allow write: if request.auth != null && (isAdmin() || isCreator());
+    }
+
+    // Batch Incharge assignments — one doc per uid, same shape as hods/{uid}
+    // above, but scoped one level down: a batch (a set of combined sections
+    // within one course) rather than a whole department. Unlike hods
+    // assignments (principal/creator only), a Batch Incharge is assigned by
+    // that batch's own Department Incharge (isHodOf the batch's
+    // departmentId) — so the write rules check both the incoming and (for
+    // update) the existing doc's departmentId, to stop one department's
+    // Incharge from reassigning or overwriting another department's
+    // Batch Incharge doc for the same professor.
+    match /batchIncharges/{uid} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == uid || isAdmin() || isCreator() || isHodOf(resource.data.departmentId));
+      allow create: if request.auth != null &&
+        (isAdmin() || isCreator() || isHodOf(request.resource.data.departmentId));
+      allow update: if request.auth != null &&
+        (isAdmin() || isCreator() ||
+         (isHodOf(request.resource.data.departmentId) && isHodOf(resource.data.departmentId)));
+      allow delete: if request.auth != null &&
+        (isAdmin() || isCreator() || isHodOf(resource.data.departmentId));
     }
 
     // Master rosters — one doc per (department_course_section) triple, holding
@@ -179,6 +199,15 @@ service cloud.firestore {
          (resource.data.expiresAt is timestamp && resource.data.expiresAt <= request.time));
     }
 
+    // Cached institution-wide stats (currently just the unique-student count
+    // shown on the Principal Dashboard). Recomputing it needs a full fan-out
+    // across every class's students subcollection, so the app only does that
+    // once per calendar day and caches the result here — read on every
+    // principal/creator login, written only when it actually recomputes.
+    match /institutionStats/{docId} {
+      allow read, write: if request.auth != null && (isAdmin() || isCreator());
+    }
+
     match /classes/{classId} {
       // Any logged-in professor can read class metadata (name, department, course,
       // lecture count) — needed so the "existing classes under this course" picker
@@ -198,7 +227,12 @@ service cloud.firestore {
         (isOwnerOrCollaborator(resource.data) &&
          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['professorId','collaboratorIds'])) ||
         (resource.data.professorId == request.auth.uid &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['collaboratorIds']))
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['collaboratorIds'])) ||
+        // Department Incharge correcting/assigning which batch a class
+        // belongs to (the "Move to different batch" tool) — scoped to only
+        // that one field, on a class within their own department.
+        (isHodOf(resource.data.departmentId) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['batchLabelOverride']))
       );
       // Only the owning professor, the principal, or a creator can delete
       // the class outright.
